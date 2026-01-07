@@ -1,0 +1,147 @@
+.lost-colegios {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.lost-summary {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+  border-radius: 8px;
+  border-left: 4px solid var(--warning-color);
+}
+
+.lost-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lost-stat-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.lost-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.lost-stat-value.warning {
+  color: var(--warning-color);
+}
+
+.lost-stat-value.danger {
+  color: var(--danger-color);
+}
+
+.no-data {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: #f0fdf4;
+  border-radius: 8px;
+  border: 2px dashed var(--success-color);
+}
+
+.no-data p {
+  font-size: 1.1rem;
+  color: var(--success-color);
+  font-weight: 600;
+  margin: 0;
+}
+
+.lost-colegios-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1rem;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.lost-colegios-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lost-colegios-list::-webkit-scrollbar-track {
+  background: var(--bg-color);
+  border-radius: 3px;
+}
+
+.lost-colegios-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.lost-colegios-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+.lost-colegio-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  background: #fff;
+  border-radius: 6px;
+  border: 2px solid #fed7aa;
+  transition: all 0.2s;
+}
+
+.lost-colegio-item:hover {
+  border-color: var(--warning-color);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+  transform: translateY(-2px);
+}
+
+.lost-icon {
+  font-size: 1.5rem;
+  min-width: 30px;
+}
+
+.lost-colegio-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.lost-colegio-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.lost-revenue-info {
+  font-size: 0.95rem;
+  color: var(--danger-color);
+  font-weight: 600;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.show-more-info {
+  text-align: center;
+  padding: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-style: italic;
+  margin-top: 1rem;
+  background: var(--bg-color);
+  border-radius: 6px;
+}
+
+@media (max-width: 1200px) {
+  .lost-colegios-list {
+    grid-template-columns: 1fr;
+  }
+
+  .lost-summary {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}

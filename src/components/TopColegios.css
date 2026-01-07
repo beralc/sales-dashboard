@@ -1,0 +1,137 @@
+.top-colegios {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.limit-select {
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.limit-select:hover {
+  border-color: var(--primary-color);
+}
+
+.limit-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.loading-spinner {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.colegios-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 600px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.colegios-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.colegios-list::-webkit-scrollbar-track {
+  background: var(--bg-color);
+  border-radius: 3px;
+}
+
+.colegios-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.colegios-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+.colegio-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--bg-color);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.colegio-item:hover {
+  background: #e0e7ff;
+  transform: translateX(4px);
+}
+
+.rank {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  min-width: 35px;
+  text-align: center;
+}
+
+.colegio-item:nth-child(1) .rank {
+  color: #fbbf24;
+  font-size: 1.5rem;
+}
+
+.colegio-item:nth-child(2) .rank {
+  color: #94a3b8;
+  font-size: 1.4rem;
+}
+
+.colegio-item:nth-child(3) .rank {
+  color: #cd7f32;
+  font-size: 1.3rem;
+}
+
+.colegio-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.colegio-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.congregacion {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.congregacion::before {
+  content: '⛪';
+  font-size: 0.9rem;
+}
+
+.colegio-revenue {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--success-color);
+  white-space: nowrap;
+}

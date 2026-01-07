@@ -1,0 +1,20 @@
+[Unit]
+Description=Sales Dashboard Backend API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/dashboard/backend
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 main.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/var/log/dashboard/backend.log
+StandardError=append:/var/log/dashboard/backend-error.log
+
+[Install]
+WantedBy=multi-user.target
