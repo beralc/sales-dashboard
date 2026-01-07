@@ -69,7 +69,7 @@ def load_data():
     return df
 
 def filter_by_product(data_df: pd.DataFrame, product: Optional[str]) -> pd.DataFrame:
-    """Filter dataframe by product (Tipo Publicación)"""
+    """Filter dataframe by product (Tipo Publicación) and optionally by Asesor"""
     if data_df.empty or not product or product.lower() == 'todos':
         return data_df
 
@@ -83,16 +83,36 @@ def filter_by_product(data_df: pd.DataFrame, product: Optional[str]) -> pd.DataF
     # Normalize product name
     product_lower = product.lower().strip()
 
-    # Get the list of product codes for this brand
-    mapped_products = product_mappings.get(product_lower, [])
+    # Get the mapping for this brand
+    mapping = product_mappings.get(product_lower)
 
-    if not mapped_products:
+    if not mapping:
         return data_df
 
-    # Filter by exact match on any of the mapped product codes
-    mask = data_df['Tipo Publicación'].isin(mapped_products)
+    # Support both list format and dict format
+    if isinstance(mapping, list):
+        # Old format: just product codes
+        product_codes = mapping
+        asesor_filter = None
+    elif isinstance(mapping, dict):
+        # New format: with optional asesor filter
+        product_codes = mapping.get("product_codes", [])
+        asesor_filter = mapping.get("asesor_filter")
+    else:
+        return data_df
 
-    return data_df[mask]
+    if not product_codes:
+        return data_df
+
+    # Filter by product codes
+    mask = data_df['Tipo Publicación'].isin(product_codes)
+    filtered_df = data_df[mask]
+
+    # Additionally filter by asesor if specified
+    if asesor_filter and 'Asesor' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['Asesor'] == asesor_filter]
+
+    return filtered_df
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
