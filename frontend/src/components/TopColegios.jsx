@@ -45,7 +45,7 @@ function TopColegios({ apiUrl, year, years, product }) {
   return (
     <div className="top-colegios">
       <div className="section-header">
-        <h2 className="section-title">Mejores Colegios</h2>
+        <h2 className="section-title">Colegios con mayor facturación</h2>
         <div className="header-controls">
           <select
             className="year-select"

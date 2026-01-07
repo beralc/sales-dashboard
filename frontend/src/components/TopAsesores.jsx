@@ -44,7 +44,7 @@ function TopAsesores({ apiUrl, year, years, product }) {
   return (
     <div className="top-asesores">
       <div className="section-header">
-        <h2 className="section-title">Mejores Asesores</h2>
+        <h2 className="section-title">Asesores con mayor facturación</h2>
         <div className="header-controls">
           <select
             className="year-select"
