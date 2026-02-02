@@ -163,7 +163,15 @@ async def get_products():
 
     all_products_in_data = df['Tipo Publicación'].dropna().unique().tolist()
 
-    for brand, mapped_codes in product_mappings.items():
+    for brand, mapping in product_mappings.items():
+        # Handle both list and dict formats
+        if isinstance(mapping, list):
+            mapped_codes = mapping
+        elif isinstance(mapping, dict):
+            mapped_codes = mapping.get("product_codes", [])
+        else:
+            continue
+
         # Check if any of the mapped codes exist in the data
         if any(code in all_products_in_data for code in mapped_codes):
             available_brands.append(brand)

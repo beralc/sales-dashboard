@@ -68,7 +68,11 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <img src={productConfig.logo} alt={`${productConfig.name} Logo`} className="app-logo" />
+        {productConfig.logo ? (
+          <img src={productConfig.logo} alt={`${productConfig.name} Logo`} className="app-logo" />
+        ) : (
+          <span className="app-logo-text">{productConfig.name}</span>
+        )}
         <div className="header-controls">
           <FileManager apiUrl={API_URL} onFileChange={fetchInitialData} />
           {products.length > 1 && (

@@ -36,6 +36,24 @@ export const products = {
       secondary: '#00AAFF',
       gradient: 'linear-gradient(135deg, #0066CC 0%, #00AAFF 100%)'
     }
+  },
+  'dispositivos': {
+    name: 'Dispositivos',
+    logo: null,
+    colors: {
+      primary: '#475569',
+      secondary: '#94a3b8',
+      gradient: 'linear-gradient(135deg, #475569 0%, #94a3b8 100%)'
+    }
+  },
+  'ondemand': {
+    name: 'On Demand',
+    logo: null,
+    colors: {
+      primary: '#7c3aed',
+      secondary: '#a78bfa',
+      gradient: 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)'
+    }
   }
 }
 
