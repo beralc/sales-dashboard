@@ -211,16 +211,19 @@ function FileManager({ apiUrl, onFileChange }) {
                 <div className="mappings-section">
                   <h3>Mapeo de Productos</h3>
                   <div className="mappings-grid">
-                    {Object.entries(config.product_mappings || {}).map(([brand, codes]) => (
-                      <div key={brand} className="mapping-item">
-                        <div className="brand-name">{brand}</div>
-                        <div className="mapped-codes">
-                          {codes.map((code, idx) => (
-                            <span key={idx} className="code-badge">{code}</span>
-                          ))}
+                    {Object.entries(config.product_mappings || {}).map(([brand, mapping]) => {
+                      const codes = Array.isArray(mapping) ? mapping : mapping.product_codes || []
+                      return (
+                        <div key={brand} className="mapping-item">
+                          <div className="brand-name">{brand}</div>
+                          <div className="mapped-codes">
+                            {codes.map((code, idx) => (
+                              <span key={idx} className="code-badge">{code}</span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}

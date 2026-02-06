@@ -15,8 +15,8 @@ export const products = {
     logo: '/gosteamlogo.svg',
     colors: {
       primary: '#FFEA00',
-      secondary: '#3b82f6',
-      gradient: 'linear-gradient(135deg, #FFEA00 0%, #06b6d4 100%)'
+      secondary: '#FFEA00',
+      gradient: '#FFEA00'
     }
   },
   'goproject': {
@@ -24,8 +24,8 @@ export const products = {
     logo: '/goprojectlogo.png',
     colors: {
       primary: '#E85B30',
-      secondary: '#8DC63F',
-      gradient: 'linear-gradient(135deg, #E85B30 0%, #8DC63F 100%)'
+      secondary: '#E85B30',
+      gradient: '#E85B30'
     }
   },
   'globaleduca': {
@@ -42,8 +42,8 @@ export const products = {
     logo: null,
     colors: {
       primary: '#475569',
-      secondary: '#94a3b8',
-      gradient: 'linear-gradient(135deg, #475569 0%, #94a3b8 100%)'
+      secondary: '#475569',
+      gradient: '#475569'
     }
   },
   'ondemand': {
@@ -51,8 +51,8 @@ export const products = {
     logo: null,
     colors: {
       primary: '#7c3aed',
-      secondary: '#a78bfa',
-      gradient: 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)'
+      secondary: '#7c3aed',
+      gradient: '#7c3aed'
     }
   }
 }
