@@ -3,11 +3,14 @@ import axios from 'axios'
 import './App.css'
 import Dashboard from './components/Dashboard'
 import FileManager from './components/FileManager'
+import Login from './components/Login'
 import { getProductConfig } from './productConfig'
+import { useAuth } from './contexts/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 function App() {
+  const { user, loading: authLoading, logout, isAuthenticated } = useAuth()
   const [years, setYears] = useState([])
   const [products, setProducts] = useState([])
   const [selectedProduct, setSelectedProduct] = useState('ta-tum')
@@ -15,8 +18,10 @@ function App() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetchInitialData()
-  }, [])
+    if (isAuthenticated) {
+      fetchInitialData()
+    }
+  }, [isAuthenticated])
 
   useEffect(() => {
     // Apply product colors to CSS variables
@@ -48,8 +53,18 @@ function App() {
     }
   }
 
-  if (loading) {
+  // Show loading while checking auth
+  if (authLoading) {
     return <div className="loading">Cargando...</div>
+  }
+
+  // Show login if not authenticated
+  if (!isAuthenticated) {
+    return <Login />
+  }
+
+  if (loading) {
+    return <div className="loading">Cargando datos...</div>
   }
 
   if (error) {
@@ -95,6 +110,12 @@ function App() {
               </select>
             </div>
           )}
+          <div className="user-menu">
+            <span className="user-email">{user?.email}</span>
+            <button className="logout-btn" onClick={logout} title="Cerrar sesión">
+              Salir
+            </button>
+          </div>
         </div>
       </header>
       <Dashboard years={years} apiUrl={API_URL} selectedProduct={selectedProduct} />
