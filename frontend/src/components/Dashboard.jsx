@@ -15,6 +15,10 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
   const [selectedYear2, setSelectedYear2] = useState(years[years.length - 2] || 2024)
   const [summary, setSummary] = useState(null)
 
+  // Products that don't have retention metrics (transactional, not subscription-based)
+  const nonRetentionProducts = ['dispositivos', 'ondemand']
+  const showRetentionMetrics = !nonRetentionProducts.includes(selectedProduct?.toLowerCase())
+
   useEffect(() => {
     fetchSummary()
   }, [selectedYear1, selectedProduct])
@@ -77,9 +81,13 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
 
       {summary && <SummaryCards summary={summary} year={selectedYear1} />}
 
-      <RetentionMetrics apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
+      {showRetentionMetrics && (
+        <RetentionMetrics apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
+      )}
 
-      <AsesoresPerformance apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
+      {showRetentionMetrics && (
+        <AsesoresPerformance apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
+      )}
 
       <div className="dashboard-grid">
         <div className="dashboard-section full-width">
