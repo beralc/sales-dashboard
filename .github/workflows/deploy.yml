@@ -11,38 +11,68 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Deploy to VPS
-      uses: appleboy/ssh-action@master
+      uses: appleboy/ssh-action@v1.0.3
+      env:
+        FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        envs: FIREBASE_API_KEY
+        script: |
+          echo "🚀 Starting deployment..."
+
+          # Create .env.production with Firebase config
+          cat > /var/www/dashboard/frontend/.env.production << 'ENVEOF'
+          VITE_API_URL=https://dashboard.bernardomorales.com
+          VITE_FIREBASE_API_KEY=AIzaSyCgdt18BHrJwD_RPZf9FUTq-xH-w6xewSk
+          VITE_FIREBASE_AUTH_DOMAIN=dashboard-edelvives.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID=dashboard-edelvives
+          VITE_FIREBASE_STORAGE_BUCKET=dashboard-edelvives.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID=166783598070
+          VITE_FIREBASE_APP_ID=1:166783598070:web:a8d51517e08480230bdbd7
+          ENVEOF
+
+          echo "✅ Deployment complete!"
+
+    - name: Sync frontend source
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        source: "frontend/src/*"
+        target: "/var/www/dashboard/"
+        strip_components: 0
+
+    - name: Sync backend
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        source: "backend/main.py"
+        target: "/var/www/dashboard/"
+        strip_components: 0
+
+    - name: Build and restart
+      uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         key: ${{ secrets.VPS_SSH_KEY }}
         script: |
-          # Navigate to project directory
-          cd /var/www/dashboard
-
-          # Pull latest code
-          git pull origin main
-
-          # Install Python dependencies
-          pip3 install --break-system-packages fastapi uvicorn pandas openpyxl python-multipart
-
           # Build frontend
           cd /var/www/dashboard/frontend
-          cat > .env.production << 'EOF'
-          VITE_API_URL=http://72.61.103.174:8080
-          EOF
-
           npm install
           npm run build
+          rm -rf /var/www/dashboard/frontend-dist/*
           cp -r dist/* /var/www/dashboard/frontend-dist/
 
-          # Restart backend service
+          # Restart backend
           systemctl restart dashboard-backend
 
-          # Reload Nginx
-          systemctl reload nginx
-
-          echo "✅ Deployment complete!"
+          echo "✅ Build complete!"
