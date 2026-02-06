@@ -38,7 +38,7 @@ def save_config(config):
         json.dump(config, f, indent=2)
 
 def load_data():
-    """Load and preprocess the Excel data"""
+    """Load and preprocess data - uses Parquet cache for speed"""
     global df
     config = load_config()
 
@@ -47,16 +47,27 @@ def load_data():
         df = pd.DataFrame()
         return df
 
-    # Load the active file
-    excel_file = os.path.join(data_dir, config["active_file"])
+    active_file = config["active_file"]
+    excel_file = os.path.join(data_dir, active_file)
+
+    # Check for Parquet cache (much faster to load)
+    parquet_file = os.path.join(data_dir, active_file.rsplit('.', 1)[0] + '.parquet')
+
+    if os.path.exists(parquet_file):
+        # Check if Parquet is newer than Excel
+        if not os.path.exists(excel_file) or os.path.getmtime(parquet_file) >= os.path.getmtime(excel_file):
+            print(f"Loading from Parquet cache: {parquet_file}")
+            df = pd.read_parquet(parquet_file)
+            return df
 
     if not os.path.exists(excel_file):
         # Fallback to old location for backwards compatibility
-        excel_file = os.path.join(script_dir, "..", config["active_file"])
+        excel_file = os.path.join(script_dir, "..", active_file)
         if not os.path.exists(excel_file):
             df = pd.DataFrame()
             return df
 
+    print(f"Loading from Excel: {excel_file} (this may take a while...)")
     df = pd.read_excel(excel_file)
 
     # Clean column names (remove leading newlines)
@@ -65,6 +76,10 @@ def load_data():
     # Extract month from fecha factura
     if 'Fecha Factura\nY-M' in df.columns:
         df['Month'] = df['Fecha Factura\nY-M'].str.extract(r'(\d{4}/\d{2})')[0]
+
+    # Save as Parquet for faster loading next time
+    print(f"Saving Parquet cache: {parquet_file}")
+    df.to_parquet(parquet_file, index=False)
 
     return df
 
