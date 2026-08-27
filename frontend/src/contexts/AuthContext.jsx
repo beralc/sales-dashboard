@@ -4,7 +4,12 @@ import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
 
 const AuthContext = createContext()
 
-const ALLOWED_DOMAIN = 'edelvives.es'
+const ALLOWED_DOMAINS = ['edelvives.es', 'fundacionedelvives.org']
+
+function isAllowedEmail(email) {
+  const normalizedEmail = (email || '').toLowerCase()
+  return ALLOWED_DOMAINS.some(domain => normalizedEmail.endsWith(`@${domain}`))
+}
 
 export function useAuth() {
   return useContext(AuthContext)
@@ -20,14 +25,14 @@ export function AuthProvider({ children }) {
       if (user) {
         // Verify domain
         const email = user.email || ''
-        if (email.endsWith(`@${ALLOWED_DOMAIN}`)) {
+        if (isAllowedEmail(email)) {
           setUser(user)
           setError(null)
         } else {
           // Sign out users from other domains
           signOut(auth)
           setUser(null)
-          setError(`Solo usuarios de @${ALLOWED_DOMAIN} pueden acceder`)
+          setError('Solo usuarios de @edelvives.es o @fundacionedelvives.org pueden acceder')
         }
       } else {
         setUser(null)
@@ -44,9 +49,9 @@ export function AuthProvider({ children }) {
       const result = await signInWithPopup(auth, googleProvider)
       const email = result.user.email || ''
 
-      if (!email.endsWith(`@${ALLOWED_DOMAIN}`)) {
+      if (!isAllowedEmail(email)) {
         await signOut(auth)
-        setError(`Solo usuarios de @${ALLOWED_DOMAIN} pueden acceder`)
+        setError('Solo usuarios de @edelvives.es o @fundacionedelvives.org pueden acceder')
         return false
       }
 
