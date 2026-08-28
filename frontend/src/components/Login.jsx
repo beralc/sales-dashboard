@@ -49,7 +49,7 @@ function Login() {
           )}
 
           <p className="domain-notice">
-            Solo usuarios con correo @edelvives.es
+            Solo usuarios con correo @edelvives.es o @fundacionedelvives.org
           </p>
         </div>
       </div>
