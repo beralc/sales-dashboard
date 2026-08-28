@@ -14,6 +14,7 @@ df = None
 script_dir = os.path.dirname(os.path.abspath(__file__))
 data_dir = os.path.join(script_dir, "data")
 config_file = os.path.join(data_dir, "config.json")
+archive_file = os.path.join(data_dir, "archive.parquet")
 
 # Ensure data directory exists
 os.makedirs(data_dir, exist_ok=True)
@@ -37,15 +38,13 @@ def save_config(config):
     with open(config_file, 'w') as f:
         json.dump(config, f, indent=2)
 
-def load_data():
-    """Load and preprocess data - uses Parquet cache for speed"""
-    global df
+def _load_active_export():
+    """Load the active export - uses Parquet cache for speed"""
     config = load_config()
 
     # If no active file, return empty dataframe
     if not config.get("active_file"):
-        df = pd.DataFrame()
-        return df
+        return pd.DataFrame()
 
     active_file = config["active_file"]
     excel_file = os.path.join(data_dir, active_file)
@@ -57,30 +56,77 @@ def load_data():
         # Check if Parquet is newer than Excel
         if not os.path.exists(excel_file) or os.path.getmtime(parquet_file) >= os.path.getmtime(excel_file):
             print(f"Loading from Parquet cache: {parquet_file}")
-            df = pd.read_parquet(parquet_file)
-            return df
+            return pd.read_parquet(parquet_file)
 
     if not os.path.exists(excel_file):
         # Fallback to old location for backwards compatibility
         excel_file = os.path.join(script_dir, "..", active_file)
         if not os.path.exists(excel_file):
-            df = pd.DataFrame()
-            return df
+            return pd.DataFrame()
 
     print(f"Loading from Excel: {excel_file} (this may take a while...)")
-    df = pd.read_excel(excel_file)
+    active = pd.read_excel(excel_file)
 
     # Clean column names (remove leading newlines)
-    df.columns = df.columns.str.strip()
+    active.columns = active.columns.str.strip()
 
     # Extract month from fecha factura
-    if 'Fecha Factura\nY-M' in df.columns:
-        df['Month'] = df['Fecha Factura\nY-M'].str.extract(r'(\d{4}/\d{2})')[0]
+    if 'Fecha Factura\nY-M' in active.columns:
+        active['Month'] = active['Fecha Factura\nY-M'].str.extract(r'(\d{4}/\d{2})')[0]
 
     # Save as Parquet for faster loading next time
     print(f"Saving Parquet cache: {parquet_file}")
-    df.to_parquet(parquet_file, index=False)
+    active.to_parquet(parquet_file, index=False)
 
+    return active
+
+
+def merge_archive(active: pd.DataFrame) -> pd.DataFrame:
+    """Add archived closed years for any year the active export does not cover.
+
+    The ERP export covers a limited range of years, so finished years are kept
+    in data/archive.parquet (see build_archive.py). The active export always
+    wins for the years it contains, which keeps open orders and the current
+    year live while older years stay available for comparisons.
+    """
+    if not os.path.exists(archive_file):
+        return active
+
+    try:
+        archive = pd.read_parquet(archive_file)
+    except Exception as e:
+        print(f"Could not read archive, continuing without it: {e}")
+        return active
+
+    if archive.empty:
+        return active
+    if active.empty:
+        return archive
+
+    if 'Año Factura' not in active.columns or 'Año Factura' not in archive.columns:
+        return active
+
+    if list(archive.columns) != list(active.columns):
+        print("Archive columns differ from the active export; skipping archive merge")
+        return active
+
+    # Year 0/NaN marks rows with no invoice yet, which are always open orders
+    # and must come from the live export rather than the archive.
+    covered = set(active['Año Factura'].dropna().unique()) - {0}
+    older = archive[~archive['Año Factura'].isin(covered)]
+
+    if older.empty:
+        return active
+
+    years = sorted(int(y) for y in older['Año Factura'].dropna().unique())
+    print(f"Merging archive: +{len(older):,} rows for years {years[0]}-{years[-1]}")
+    return pd.concat([older, active], ignore_index=True)
+
+
+def load_data():
+    """Load the active export and merge in archived closed years."""
+    global df
+    df = merge_archive(_load_active_export())
     return df
 
 def filter_by_product(data_df: pd.DataFrame, product: Optional[str]) -> pd.DataFrame:

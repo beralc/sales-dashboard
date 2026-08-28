@@ -54,7 +54,7 @@ jobs:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         key: ${{ secrets.VPS_SSH_KEY }}
-        source: "backend/main.py"
+        source: "backend/*.py"
         target: "/var/www/dashboard/"
         strip_components: 0
 
