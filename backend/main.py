@@ -1,5 +1,8 @@
-from fastapi import FastAPI, Query, UploadFile, File, HTTPException
+from fastapi import FastAPI, Query, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from auth import AuthError, verify_bearer_token
 from contextlib import asynccontextmanager
 import pandas as pd
 from typing import List, Optional, Dict
@@ -123,10 +126,38 @@ def merge_archive(active: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([older, active], ignore_index=True)
 
 
+# The ERP writes "." into Colegio for sales with no school attached -
+# distributors, individual customers, internal accounts. That is real revenue,
+# but it is not a school, so it must not rank or be counted as one.
+NO_COLEGIO_PLACEHOLDERS = {".", "", "-", "nan", "none"}
+
+
+def normalise_colegio(frame: pd.DataFrame) -> pd.DataFrame:
+    """Turn the "no school" placeholder into a real null.
+
+    Every school-based figure drops nulls already, so this removes the
+    placeholder from rankings, unique counts and retention sets without
+    touching any revenue total.
+    """
+    if frame.empty or 'Colegio' not in frame.columns:
+        return frame
+
+    values = frame['Colegio']
+    blank = values.isna() | values.astype(str).str.strip().str.lower().isin(
+        NO_COLEGIO_PLACEHOLDERS
+    )
+    if blank.any():
+        print(f"Colegio: {int(blank.sum()):,} rows with no school assigned")
+        frame = frame.copy()
+        frame.loc[blank, 'Colegio'] = None
+
+    return frame
+
+
 def load_data():
     """Load the active export and merge in archived closed years."""
     global df
-    df = merge_archive(_load_active_export())
+    df = normalise_colegio(merge_archive(_load_active_export()))
     return df
 
 def filter_by_product(data_df: pd.DataFrame, product: Optional[str]) -> pd.DataFrame:
@@ -195,6 +226,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Every /api route requires a verified Firebase ID token. The login screen only
+# controls what the browser renders; without this the data was readable by
+# anyone who knew the URL.
+PUBLIC_PATHS = {"/", "/docs", "/openapi.json", "/redoc"}
+
+
+@app.middleware("http")
+async def require_authentication(request: Request, call_next):
+    path = request.url.path
+
+    # Preflight carries no Authorization header by design.
+    if request.method == "OPTIONS" or path in PUBLIC_PATHS:
+        return await call_next(request)
+
+    if path.startswith("/api/"):
+        try:
+            claims = verify_bearer_token(request.headers.get("authorization"))
+        except AuthError as exc:
+            return JSONResponse(status_code=401, content={"detail": exc.detail})
+        request.state.user_email = claims.get("email")
+
+    return await call_next(request)
 
 @app.get("/")
 async def root():

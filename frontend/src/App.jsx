@@ -47,7 +47,13 @@ function App() {
 
       setLoading(false)
     } catch (err) {
-      setError('Error al cargar los datos. Asegúrate de que el servidor backend esté ejecutándose.')
+      // The API rejects the token itself, so a 401 here means the session
+      // expired or the account is not allowed - not that the server is down.
+      if (err.response?.status === 401) {
+        setError('Tu sesión ha caducado o tu cuenta no tiene acceso. Cierra sesión y vuelve a entrar.')
+      } else {
+        setError('Error al cargar los datos. Asegúrate de que el servidor backend esté ejecutándose.')
+      }
       setLoading(false)
       console.error('Error fetching initial data:', err)
     }
