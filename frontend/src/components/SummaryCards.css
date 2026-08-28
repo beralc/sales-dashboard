@@ -85,3 +85,65 @@
     font-size: 1.5rem;
   }
 }
+
+/* Year-over-year delta shown under each card value */
+.card-delta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.delta-arrow {
+  font-size: 0.7rem;
+}
+
+.card-delta-up {
+  color: #15803d;
+}
+
+.card-delta-down {
+  color: #b91c1c;
+}
+
+.card-delta-flat {
+  color: #6b7280;
+}
+
+.delta-base {
+  font-weight: 400;
+  opacity: 0.75;
+  color: var(--text-color, #374151);
+}
+
+/* The primary card's background is the product colour, which ranges from
+   bright yellow to purple. No single text colour reads on all of them, so the
+   delta gets a translucent dark pill and white text instead of a tint. */
+.summary-card.primary .card-delta {
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  width: fit-content;
+}
+
+.summary-card.primary .card-delta-up,
+.summary-card.primary .card-delta-down,
+.summary-card.primary .card-delta-flat,
+.summary-card.primary .delta-base {
+  color: #fff;
+}
+
+.summary-card.primary .delta-base {
+  opacity: 0.85;
+}
+
+@media (max-width: 768px) {
+  .card-delta {
+    font-size: 0.75rem;
+  }
+}

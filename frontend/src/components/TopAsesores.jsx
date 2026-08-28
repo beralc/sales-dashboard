@@ -9,6 +9,12 @@ function TopAsesores({ apiUrl, year, years, product }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedYear, setSelectedYear] = useState(year)
 
+  // Follow the dashboard-level year control. Without this the panel keeps
+  // whatever year it mounted with and silently shows stale figures.
+  useEffect(() => {
+    setSelectedYear(year)
+  }, [year])
+
   useEffect(() => {
     fetchAsesores()
   }, [selectedYear, limit, product])
