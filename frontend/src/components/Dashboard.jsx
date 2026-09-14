@@ -30,10 +30,10 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
       try {
         const [current, base] = await Promise.all([
           axios.get(`${apiUrl}/api/summary`, {
-            params: { year: selectedYear1, product: selectedProduct }
+            params: { year: selectedYear1, product: selectedProduct, compare_year: selectedYear2 }
           }),
           axios.get(`${apiUrl}/api/summary`, {
-            params: { year: selectedYear2, product: selectedProduct }
+            params: { year: selectedYear2, product: selectedProduct, compare_year: selectedYear1 }
           })
         ])
         if (cancelled) return
@@ -133,6 +133,7 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
           <TopColegios
             apiUrl={apiUrl}
             year={selectedYear1}
+            baseYear={selectedYear2}
             years={years}
             product={selectedProduct}
           />
@@ -142,6 +143,7 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
           <TopAsesores
             apiUrl={apiUrl}
             year={selectedYear1}
+            baseYear={selectedYear2}
             years={years}
             product={selectedProduct}
           />

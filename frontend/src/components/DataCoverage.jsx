@@ -6,37 +6,42 @@ const MONTHS = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
 ]
 
+const shortMonth = (n) => (MONTHS[n - 1] ?? `mes ${n}`).slice(0, 3)
+
 /**
- * States how far the loaded data runs, and warns when the selected comparison
- * puts a partial year against a complete one.
+ * States how far the data runs and which period the comparison actually uses.
  *
- * Without this the dashboard gave no clue that the current year stops mid-way:
- * a seven-month 2026 against a twelve-month 2025 renders as a large drop that
- * looks like a real collapse.
+ * The current year is always partial, so the API clamps both sides of a
+ * comparison to the last complete month. That keeps the figures honest, but it
+ * has to be visible - otherwise the totals here will not match a full-year
+ * number from anywhere else.
  */
 function DataCoverage({ apiUrl, currentYear, baseYear }) {
   const { data } = useApiData(`${apiUrl}/api/data-coverage`, {})
 
   if (!data?.latest_month) return null
 
-  const { latest_year: latestYear, latest_month_number: monthNumber } = data
-  const monthName = MONTHS[monthNumber - 1] ?? `mes ${monthNumber}`
-  const isPartialYear = monthNumber < 12
+  const {
+    latest_year: latestYear,
+    latest_month_number: latestMonth,
+    comparison_cutoff_month: cutoff
+  } = data
 
-  // Only a partial current year measured against an earlier, complete year
-  // produces the misleading comparison.
-  const comparisonIsUneven =
-    isPartialYear && currentYear === latestYear && baseYear < latestYear
+  const monthName = MONTHS[latestMonth - 1] ?? `mes ${latestMonth}`
+
+  // Both sides are clamped only when the partial year is part of the comparison.
+  const isClamped =
+    cutoff && (currentYear === latestYear || baseYear === latestYear) && currentYear !== baseYear
 
   return (
-    <div className={`data-coverage${comparisonIsUneven ? ' data-coverage-warning' : ''}`}>
+    <div className="data-coverage">
       <span className="coverage-label">
         Datos hasta <strong>{monthName} {latestYear}</strong>
       </span>
-      {comparisonIsUneven && (
-        <span className="coverage-note">
-          {currentYear} incluye solo {monthNumber} {monthNumber === 1 ? 'mes' : 'meses'};
-          {' '}la comparación con {baseYear} (año completo) no es equivalente.
+      {isClamped && (
+        <span className="coverage-period">
+          Comparación equivalente: <strong>ene–{shortMonth(cutoff)}</strong> de {baseYear} y {currentYear}
+          {latestMonth > cutoff && ` · ${MONTHS[latestMonth - 1]} está incompleto y queda fuera`}
         </span>
       )}
     </div>

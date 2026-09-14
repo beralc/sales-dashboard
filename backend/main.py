@@ -6,7 +6,8 @@ from auth import AuthError, verify_bearer_token
 from contextlib import asynccontextmanager
 import pandas as pd
 from typing import List, Optional, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
+import re
 import os
 import json
 from pathlib import Path
@@ -160,6 +161,84 @@ def load_data():
     df = normalise_colegio(merge_archive(_load_active_export()))
     return df
 
+def get_cutoff_month() -> Optional[str]:
+    """The last COMPLETE month of data, as 'MM', or None if the data is whole.
+
+    The current year is always partial, so comparing it against a full prior
+    year measures a quiet half against a busy one. This business is heavily
+    back-loaded - Aug-Dec 2025 was 3.5x Jan-Jul - so that comparison reported
+    Dispositivos at -79.9% when the like-for-like figure was +7.2%.
+
+    The month an export was taken in is itself incomplete, so the last complete
+    month is the one before it. Export dates come from the filename the ERP
+    produces (Crea_tu_propio_informe_YYYYMMDD_HHMMSS.xlsx), falling back to the
+    file's mtime. The result is also capped at the last month that actually has
+    revenue, so a gap at the end of the data cannot invent a complete month.
+    """
+    config = load_config()
+    active_file = config.get("active_file")
+    if not active_file or df.empty or 'Month' not in df.columns:
+        return None
+
+    export_date = None
+    match = re.search(r'(\d{8})_\d{6}', active_file)
+    if match:
+        try:
+            export_date = datetime.strptime(match.group(1), "%Y%m%d")
+        except ValueError:
+            export_date = None
+
+    if export_date is None:
+        path = os.path.join(data_dir, active_file)
+        if os.path.exists(path):
+            export_date = datetime.fromtimestamp(os.path.getmtime(path))
+
+    if export_date is None:
+        return None
+
+    # The export month is partial; the previous month is the last complete one.
+    last_complete = export_date.replace(day=1) - timedelta(days=1)
+    cutoff_year, cutoff_month = last_complete.year, last_complete.month
+
+    # Never claim a month is complete if the data stops earlier.
+    with_revenue = df[df['Month'].notna() & (df['Total neto'] != 0)]
+    if with_revenue.empty:
+        return None
+    latest = str(with_revenue['Month'].max())
+    latest_year, latest_month = int(latest[:4]), int(latest[5:7])
+
+    if (latest_year, latest_month) < (cutoff_year, cutoff_month):
+        cutoff_year, cutoff_month = latest_year, latest_month
+
+    return f"{cutoff_month:02d}" if cutoff_year >= latest_year else None
+
+
+def clamp_to_period(data_df: pd.DataFrame, cutoff: Optional[str]) -> pd.DataFrame:
+    """Keep only months up to and including `cutoff` ('MM')."""
+    if not cutoff or data_df.empty or 'Month' not in data_df.columns:
+        return data_df
+    months = data_df['Month'].str.slice(5, 7)
+    return data_df[months.notna() & (months <= cutoff)]
+
+
+def comparison_cutoff(*years: int) -> Optional[str]:
+    """Cutoff to apply when any of `years` is the partial current year.
+
+    Two closed years are compared in full - truncating them would discard real
+    data - so this returns None unless the partial year is actually involved.
+    """
+    cutoff = get_cutoff_month()
+    if not cutoff or df.empty:
+        return None
+
+    with_revenue = df[df['Month'].notna() & (df['Total neto'] != 0)]
+    if with_revenue.empty:
+        return None
+    partial_year = int(str(with_revenue['Month'].max())[:4])
+
+    return cutoff if any(y == partial_year for y in years) else None
+
+
 def filter_by_product(data_df: pd.DataFrame, product: Optional[str]) -> pd.DataFrame:
     """Filter dataframe by product (Tipo Publicación) and optionally by Asesor"""
     if data_df.empty or not product or product.lower() == 'todos':
@@ -288,10 +367,14 @@ async def get_data_coverage():
     latest = str(with_revenue['Month'].max()) if not with_revenue.empty else str(months.max())
 
     year, month = latest.split('/')
+    cutoff = get_cutoff_month()
     return {
         "latest_month": latest,
         "latest_year": int(year),
         "latest_month_number": int(month),
+        # The last COMPLETE month. Comparisons involving the partial current
+        # year are clamped to this on both sides, so the UI must say so.
+        "comparison_cutoff_month": int(cutoff) if cutoff else None,
     }
 
 @app.get("/api/products")
@@ -327,7 +410,8 @@ async def get_top_colegios(
     year: Optional[int] = Query(None, description="Filter by year"),
     month: Optional[str] = Query(None, description="Filter by month (YYYY/MM)"),
     product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
-    limit: int = Query(10, description="Number of top colegios to return")
+    limit: int = Query(10, description="Number of top colegios to return"),
+    compare_year: Optional[int] = Query(None, description="Other year in the comparison, so the period matches the summary")
 ):
     """Get top colegios by total neto"""
     filtered_df = df.copy()
@@ -338,6 +422,11 @@ async def get_top_colegios(
     # Apply filters
     if year:
         filtered_df = filtered_df[filtered_df['Año Factura'] == year]
+        # Clamp to the same period the summary uses, so the ranking reconciles
+        # with the headline total instead of quietly exceeding it.
+        if not month:
+            years = (year, compare_year) if compare_year else (year,)
+            filtered_df = clamp_to_period(filtered_df, comparison_cutoff(*years))
 
     if month:
         filtered_df = filtered_df[filtered_df['Month'] == month]
@@ -366,7 +455,8 @@ async def get_top_asesores(
     year: Optional[int] = Query(None, description="Filter by year"),
     month: Optional[str] = Query(None, description="Filter by month (YYYY/MM)"),
     product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
-    limit: int = Query(10, description="Number of top asesores to return")
+    limit: int = Query(10, description="Number of top asesores to return"),
+    compare_year: Optional[int] = Query(None, description="Other year in the comparison, so the period matches the summary")
 ):
     """Get top asesores (sales reps) by total neto"""
     filtered_df = df.copy()
@@ -377,6 +467,11 @@ async def get_top_asesores(
     # Apply filters
     if year:
         filtered_df = filtered_df[filtered_df['Año Factura'] == year]
+        # Clamp to the same period the summary uses, so the ranking reconciles
+        # with the headline total instead of quietly exceeding it.
+        if not month:
+            years = (year, compare_year) if compare_year else (year,)
+            filtered_df = clamp_to_period(filtered_df, comparison_cutoff(*years))
 
     if month:
         filtered_df = filtered_df[filtered_df['Month'] == month]
@@ -470,7 +565,8 @@ async def get_monthly_revenue(
 async def get_summary(
     year: Optional[int] = Query(None, description="Filter by year"),
     month: Optional[str] = Query(None, description="Filter by month (YYYY/MM)"),
-    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)")
+    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
+    compare_year: Optional[int] = Query(None, description="The other year in the comparison, so both sides clamp to the same period")
 ):
     """Get summary statistics"""
     filtered_df = df.copy()
@@ -481,6 +577,11 @@ async def get_summary(
     # Apply filters
     if year:
         filtered_df = filtered_df[filtered_df['Año Factura'] == year]
+        # Clamp when either side of the comparison is the partial current year,
+        # so the base year is truncated to match rather than compared in full.
+        if not month:
+            years = (year, compare_year) if compare_year else (year,)
+            filtered_df = clamp_to_period(filtered_df, comparison_cutoff(*years))
 
     if month:
         filtered_df = filtered_df[filtered_df['Month'] == month]
@@ -506,8 +607,9 @@ async def get_lost_colegios(
     """Get colegios that had sales in year1 but not in year2"""
 
     # Get unique colegios for each year
-    df_year1 = filter_by_product(df[df['Año Factura'] == year1].copy(), product)
-    df_year2 = filter_by_product(df[df['Año Factura'] == year2].copy(), product)
+    cutoff = comparison_cutoff(year1, year2)
+    df_year1 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year1].copy(), product), cutoff)
+    df_year2 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year2].copy(), product), cutoff)
 
     colegios_year1 = set(df_year1['Colegio'].dropna().unique())
     colegios_year2 = set(df_year2['Colegio'].dropna().unique())
@@ -553,8 +655,9 @@ async def get_new_colegios(
     """Get colegios that have sales in year2 but not in year1 (new customers)"""
 
     # Get unique colegios for each year
-    df_year1 = filter_by_product(df[df['Año Factura'] == year1].copy(), product)
-    df_year2 = filter_by_product(df[df['Año Factura'] == year2].copy(), product)
+    cutoff = comparison_cutoff(year1, year2)
+    df_year1 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year1].copy(), product), cutoff)
+    df_year2 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year2].copy(), product), cutoff)
 
     colegios_year1 = set(df_year1['Colegio'].dropna().unique())
     colegios_year2 = set(df_year2['Colegio'].dropna().unique())
@@ -600,8 +703,9 @@ async def get_retention_metrics(
     """Get retention metrics comparing two years"""
 
     # Get unique colegios for each year
-    df_year1 = filter_by_product(df[df['Año Factura'] == year1].copy(), product)
-    df_year2 = filter_by_product(df[df['Año Factura'] == year2].copy(), product)
+    cutoff = comparison_cutoff(year1, year2)
+    df_year1 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year1].copy(), product), cutoff)
+    df_year2 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year2].copy(), product), cutoff)
 
     colegios_year1 = set(df_year1['Colegio'].dropna().unique())
     colegios_year2 = set(df_year2['Colegio'].dropna().unique())
@@ -715,8 +819,9 @@ async def get_asesores_performance(
     """Get asesor performance metrics: retention, new, and lost colegios"""
 
     # Get unique colegios for each year
-    df_year1 = filter_by_product(df[df['Año Factura'] == year1].copy(), product)
-    df_year2 = filter_by_product(df[df['Año Factura'] == year2].copy(), product)
+    cutoff = comparison_cutoff(year1, year2)
+    df_year1 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year1].copy(), product), cutoff)
+    df_year2 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year2].copy(), product), cutoff)
 
     # Get all asesores
     all_asesores = set(df_year1['Asesor'].dropna().unique()) | set(df_year2['Asesor'].dropna().unique())

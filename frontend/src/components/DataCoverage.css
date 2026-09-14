@@ -16,16 +16,13 @@
   font-weight: 700;
 }
 
-/* Raised to a warning when the selected years are not comparable periods. */
-.data-coverage-warning {
-  background: #fffbeb;
-  border-left: 3px solid #f59e0b;
-  box-shadow: none;
+/* The period actually used by the comparison, once both sides are clamped. */
+.coverage-period {
+  color: var(--text-secondary, #475569);
 }
 
-.coverage-note {
-  color: #92400e;
-  font-weight: 600;
+.coverage-period strong {
+  color: var(--text-primary, #1e293b);
 }
 
 @media (max-width: 768px) {
