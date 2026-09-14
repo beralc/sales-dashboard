@@ -110,16 +110,6 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
         />
       )}
 
-      <div className="dashboard-grid">
-        <div className="dashboard-section full-width">
-          <MonthlyComparison
-            apiUrl={apiUrl}
-            years={years}
-            product={selectedProduct}
-          />
-        </div>
-      </div>
-
       {showRetentionMetrics && (
         <RetentionMetrics apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
       )}
@@ -129,6 +119,14 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
       )}
 
       <div className="dashboard-grid">
+        <div className="dashboard-section full-width">
+          <MonthlyComparison
+            apiUrl={apiUrl}
+            years={years}
+            product={selectedProduct}
+          />
+        </div>
+
         <div className="dashboard-section">
           <TopColegios
             apiUrl={apiUrl}

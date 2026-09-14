@@ -101,17 +101,25 @@ function MonthlyComparison({ apiUrl, years, product }) {
     return null
   }
 
-  // Indexed rather than keyed by year: the old hardcoded map stopped at 2025,
-  // so 2026 and every later year fell through to the same grey and became
-  // indistinguishable from one another on the chart.
-  const YEAR_PALETTE = [
-    '#0ea5e9', '#6366f1', '#f59e0b', '#10b981', '#ef4444',
-    '#8b5cf6', '#06b6d4', '#fbbf24', '#ec4899', '#64748b'
-  ]
-  const colorForYear = (year) => {
-    const index = years.indexOf(year)
-    return YEAR_PALETTE[(index < 0 ? 0 : index) % YEAR_PALETTE.length]
+  // Original palette, kept as-is. It only ran to 2025, so later years all fell
+  // through to the same grey and became indistinguishable; the extras below
+  // continue it without changing any existing year's colour.
+  const yearColors = {
+    2017: '#64748b',
+    2018: '#94a3b8',
+    2019: '#cbd5e1',
+    2020: '#06b6d4',
+    2021: '#0ea5e9',
+    2022: '#3b82f6',
+    2023: '#6366f1',
+    2024: '#f59e0b',
+    2025: '#fbbf24',
+    2026: '#10b981',
+    2027: '#ef4444',
+    2028: '#8b5cf6',
+    2029: '#ec4899',
   }
+  const colorForYear = (year) => yearColors[year] || '#64748b'
 
   return (
     <div className="monthly-comparison">
