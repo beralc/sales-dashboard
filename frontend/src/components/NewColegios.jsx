@@ -1,29 +1,14 @@
-import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { useState } from 'react'
+import { useApiData } from '../hooks/useApiData'
+import PanelError from './PanelError'
 import './NewColegios.css'
 
 function NewColegios({ apiUrl, year1, year2, product }) {
-  const [newData, setNewData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { data: newData, loading, error, retry } = useApiData(
+    `${apiUrl}/api/new-colegios`,
+    { year1, year2, product }
+  )
   const [limit, setLimit] = useState(20)
-
-  useEffect(() => {
-    fetchNewColegios()
-  }, [year1, year2, product])
-
-  const fetchNewColegios = async () => {
-    setLoading(true)
-    try {
-      const response = await axios.get(`${apiUrl}/api/new-colegios`, {
-        params: { year1, year2, product }
-      })
-      setNewData(response.data)
-    } catch (err) {
-      console.error('Error fetching new colegios:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-ES', {
@@ -41,6 +26,17 @@ function NewColegios({ apiUrl, year1, year2, product }) {
           <h2 className="section-title">Nuevos Colegios: {year1} → {year2}</h2>
         </div>
         <div className="loading-spinner">Cargando...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="new-colegios">
+        <div className="section-header">
+          <h2 className="section-title">Nuevos Colegios: {year1} → {year2}</h2>
+        </div>
+        <PanelError onRetry={retry} />
       </div>
     )
   }

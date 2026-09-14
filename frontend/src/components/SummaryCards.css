@@ -23,7 +23,9 @@
 
 .summary-card.primary {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  color: white;
+  /* Derived per product - the palette includes near-white yellows where white
+     text drops to ~1.2:1. See getOnPrimaryColor in productConfig.js. */
+  color: var(--on-primary-color, white);
 }
 
 .card-icon {
@@ -38,7 +40,8 @@
 }
 
 .summary-card.primary .card-icon {
-  background: rgba(255, 255, 255, 0.25);
+  /* A white wash is invisible on the light product themes. */
+  background: color-mix(in srgb, var(--on-primary-color, #fff) 20%, transparent);
 }
 
 .card-content {
@@ -53,7 +56,8 @@
 }
 
 .summary-card.primary .card-content h3 {
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--on-primary-color, white);
+  opacity: 0.95;
 }
 
 .card-value {
@@ -124,8 +128,7 @@
    bright yellow to purple. No single text colour reads on all of them, so the
    delta gets a translucent dark pill and white text instead of a tint. */
 .summary-card.primary .card-delta {
-  background: rgba(0, 0, 0, 0.28);
-  color: #fff;
+  background: color-mix(in srgb, var(--on-primary-color, #000) 18%, transparent);
   border-radius: 999px;
   padding: 0.2rem 0.55rem;
   width: fit-content;
@@ -135,7 +138,7 @@
 .summary-card.primary .card-delta-down,
 .summary-card.primary .card-delta-flat,
 .summary-card.primary .delta-base {
-  color: #fff;
+  color: var(--on-primary-color, white);
 }
 
 .summary-card.primary .delta-base {

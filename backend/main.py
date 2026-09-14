@@ -266,6 +266,34 @@ async def get_years():
     years = sorted([int(y) for y in df['Año Factura'].dropna().unique() if y > 0])
     return {"years": years}
 
+
+@app.get("/api/data-coverage")
+async def get_data_coverage():
+    """Report how far the loaded data actually runs.
+
+    The current year is always partial - the export is taken mid-year - so a
+    year-over-year figure compares a part-year against a full one. The UI needs
+    to say so, otherwise a seven-month 2026 silently reads as a collapse
+    against a twelve-month 2025.
+    """
+    if df.empty or 'Month' not in df.columns:
+        return {"latest_month": None, "latest_year": None, "complete_through": None}
+
+    months = df['Month'].dropna()
+    if months.empty:
+        return {"latest_month": None, "latest_year": None, "complete_through": None}
+
+    # Ignore months with no invoiced revenue: exports carry empty future months.
+    with_revenue = df[df['Month'].notna() & (df['Total neto'] != 0)]
+    latest = str(with_revenue['Month'].max()) if not with_revenue.empty else str(months.max())
+
+    year, month = latest.split('/')
+    return {
+        "latest_month": latest,
+        "latest_year": int(year),
+        "latest_month_number": int(month),
+    }
+
 @app.get("/api/products")
 async def get_products():
     """Get available brands based on configuration"""
@@ -681,7 +709,8 @@ async def get_monthly_retention(
 async def get_asesores_performance(
     year1: int = Query(..., description="Previous year"),
     year2: int = Query(..., description="Current year"),
-    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)")
+    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
+    limit: int = Query(10, ge=1, le=500, description="Max asesores per ranking")
 ):
     """Get asesor performance metrics: retention, new, and lost colegios"""
 
@@ -723,11 +752,13 @@ async def get_asesores_performance(
             "total_y2": len(colegios_y2)
         })
 
-    # Sort by different metrics
+    # Sort by different metrics. The limit is honoured here rather than hardcoded
+    # at 10 - the UI offers "Mostrar 20" and "Mostrar Todos", and slicing to 10
+    # first made both options do nothing.
     top_retention = sorted([a for a in asesores_stats if a['total_y1'] > 0],
-                          key=lambda x: x['retention_rate'], reverse=True)[:10]
-    top_new = sorted(asesores_stats, key=lambda x: x['new_count'], reverse=True)[:10]
-    top_lost = sorted(asesores_stats, key=lambda x: x['lost_count'], reverse=True)[:10]
+                          key=lambda x: x['retention_rate'], reverse=True)[:limit]
+    top_new = sorted(asesores_stats, key=lambda x: x['new_count'], reverse=True)[:limit]
+    top_lost = sorted(asesores_stats, key=lambda x: x['lost_count'], reverse=True)[:limit]
 
     return {
         "year1": year1,

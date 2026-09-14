@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { useApiData } from '../hooks/useApiData'
+import PanelError from './PanelError'
 import './TopColegios.css'
 
 function TopColegios({ apiUrl, year, years, product }) {
-  const [colegios, setColegios] = useState([])
-  const [loading, setLoading] = useState(true)
   const [limit, setLimit] = useState(10)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedYear, setSelectedYear] = useState(year)
@@ -15,23 +14,14 @@ function TopColegios({ apiUrl, year, years, product }) {
     setSelectedYear(year)
   }, [year])
 
-  useEffect(() => {
-    fetchColegios()
-  }, [selectedYear, limit, product])
-
-  const fetchColegios = async () => {
-    setLoading(true)
-    try {
-      const response = await axios.get(`${apiUrl}/api/top-colegios`, {
-        params: { year: selectedYear, limit, product }
-      })
-      setColegios(response.data.data)
-    } catch (err) {
-      console.error('Error fetching colegios:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // While searching, pull a much larger pool: the search box implies it covers
+  // every school, but it filters client-side, so with the default Top 10 a real
+  // school outside the top 10 came back as "no results".
+  const { data, loading, error, retry } = useApiData(
+    `${apiUrl}/api/top-colegios`,
+    { year: selectedYear, limit: searchTerm ? 1000 : limit, product }
+  )
+  const colegios = data?.data ?? []
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-ES', {
@@ -42,11 +32,14 @@ function TopColegios({ apiUrl, year, years, product }) {
     }).format(value)
   }
 
-  const filteredColegios = colegios.filter(colegio => {
+  const matchingColegios = colegios.filter(colegio => {
     const searchLower = searchTerm.toLowerCase()
     return colegio.colegio.toLowerCase().includes(searchLower) ||
            (colegio.congregacion && colegio.congregacion.toLowerCase().includes(searchLower))
   })
+
+  // The pool is inflated while searching; never render more than the chosen Top N.
+  const visibleColegios = matchingColegios.slice(0, limit)
 
   return (
     <div className="top-colegios">
@@ -88,14 +81,20 @@ function TopColegios({ apiUrl, year, years, product }) {
         )}
       </div>
 
-      {loading ? (
+      {error ? (
+        <PanelError onRetry={retry} />
+      ) : loading ? (
         <div className="loading-spinner">Cargando...</div>
       ) : (
         <div className="colegios-list">
-          {filteredColegios.length === 0 ? (
-            <div className="no-results">No se encontraron resultados para "{searchTerm}"</div>
+          {visibleColegios.length === 0 ? (
+            <div className="no-results">
+              {searchTerm
+                ? `No se encontraron resultados para "${searchTerm}"`
+                : 'No hay datos para este año'}
+            </div>
           ) : (
-            filteredColegios.map((colegio, index) => (
+            visibleColegios.map((colegio, index) => (
             <div key={index} className="colegio-item">
               <div className="rank">{index + 1}</div>
               <div className="colegio-info">

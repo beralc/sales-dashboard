@@ -1,29 +1,14 @@
-import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { useState } from 'react'
+import { useApiData } from '../hooks/useApiData'
+import PanelError from './PanelError'
 import './AsesoresPerformance.css'
 
 function AsesoresPerformance({ apiUrl, year1, year2, product }) {
-  const [performanceData, setPerformanceData] = useState(null)
-  const [loading, setLoading] = useState(true)
   const [limit, setLimit] = useState(10)
-
-  useEffect(() => {
-    fetchPerformance()
-  }, [year1, year2, product])
-
-  const fetchPerformance = async () => {
-    setLoading(true)
-    try {
-      const response = await axios.get(`${apiUrl}/api/asesores-performance`, {
-        params: { year1, year2, product }
-      })
-      setPerformanceData(response.data)
-    } catch (err) {
-      console.error('Error fetching asesores performance:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { data: performanceData, loading, error, retry } = useApiData(
+    `${apiUrl}/api/asesores-performance`,
+    { year1, year2, product, limit }
+  )
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-ES', {
@@ -45,6 +30,17 @@ function AsesoresPerformance({ apiUrl, year1, year2, product }) {
           <h2 className="section-title">Rendimiento de Asesores: {year1} → {year2}</h2>
         </div>
         <div className="loading-spinner">Cargando...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="asesores-performance">
+        <div className="section-header">
+          <h2 className="section-title">Rendimiento de Asesores: {year1} → {year2}</h2>
+        </div>
+        <PanelError onRetry={retry} />
       </div>
     )
   }

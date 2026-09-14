@@ -4,7 +4,7 @@ import './App.css'
 import Dashboard from './components/Dashboard'
 import FileManager from './components/FileManager'
 import Login from './components/Login'
-import { getProductConfig } from './productConfig'
+import { getProductConfig, getOnPrimaryColor } from './productConfig'
 import { useAuth } from './contexts/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -28,6 +28,7 @@ function App() {
     const productConfig = getProductConfig(selectedProduct)
     document.documentElement.style.setProperty('--primary-color', productConfig.colors.primary)
     document.documentElement.style.setProperty('--secondary-color', productConfig.colors.secondary)
+    document.documentElement.style.setProperty('--on-primary-color', getOnPrimaryColor(selectedProduct))
   }, [selectedProduct])
 
   const fetchInitialData = async () => {

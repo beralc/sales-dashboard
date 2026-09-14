@@ -5,6 +5,7 @@ import TopColegios from './TopColegios'
 import TopAsesores from './TopAsesores'
 import MonthlyComparison from './MonthlyComparison'
 import SummaryCards from './SummaryCards'
+import DataCoverage from './DataCoverage'
 import LostColegios from './LostColegios'
 import NewColegios from './NewColegios'
 import RetentionMetrics from './RetentionMetrics'
@@ -94,6 +95,12 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
         </div>
       </div>
 
+      <DataCoverage
+        apiUrl={apiUrl}
+        currentYear={selectedYear1}
+        baseYear={selectedYear2}
+      />
+
       {summary && (
         <SummaryCards
           summary={summary}
@@ -101,14 +108,6 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
           year={selectedYear1}
           baseYear={selectedYear2}
         />
-      )}
-
-      {showRetentionMetrics && (
-        <RetentionMetrics apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
-      )}
-
-      {showRetentionMetrics && (
-        <AsesoresPerformance apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
       )}
 
       <div className="dashboard-grid">
@@ -119,7 +118,17 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
             product={selectedProduct}
           />
         </div>
+      </div>
 
+      {showRetentionMetrics && (
+        <RetentionMetrics apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
+      )}
+
+      {showRetentionMetrics && (
+        <AsesoresPerformance apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
+      )}
+
+      <div className="dashboard-grid">
         <div className="dashboard-section">
           <TopColegios
             apiUrl={apiUrl}

@@ -1,0 +1,36 @@
+.panel-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  color: #b91c1c;
+  text-align: center;
+}
+
+.panel-error-icon {
+  font-size: 1.5rem;
+}
+
+.panel-error p {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.panel-error-retry {
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #b91c1c;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.panel-error-retry:hover {
+  background: rgba(185, 28, 28, 0.08);
+}

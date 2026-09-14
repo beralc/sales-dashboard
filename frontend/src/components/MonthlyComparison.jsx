@@ -101,17 +101,16 @@ function MonthlyComparison({ apiUrl, years, product }) {
     return null
   }
 
-  // Color palette for different years
-  const yearColors = {
-    2017: '#64748b',
-    2018: '#94a3b8',
-    2019: '#cbd5e1',
-    2020: '#06b6d4',
-    2021: '#0ea5e9',
-    2022: '#3b82f6',
-    2023: '#6366f1',
-    2024: '#f59e0b',
-    2025: '#fbbf24',
+  // Indexed rather than keyed by year: the old hardcoded map stopped at 2025,
+  // so 2026 and every later year fell through to the same grey and became
+  // indistinguishable from one another on the chart.
+  const YEAR_PALETTE = [
+    '#0ea5e9', '#6366f1', '#f59e0b', '#10b981', '#ef4444',
+    '#8b5cf6', '#06b6d4', '#fbbf24', '#ec4899', '#64748b'
+  ]
+  const colorForYear = (year) => {
+    const index = years.indexOf(year)
+    return YEAR_PALETTE[(index < 0 ? 0 : index) % YEAR_PALETTE.length]
   }
 
   return (
@@ -145,7 +144,7 @@ function MonthlyComparison({ apiUrl, years, product }) {
                 onChange={() => toggleYear(year)}
               />
               <span className="checkbox-label" style={{
-                color: selectedYears.includes(year) ? yearColors[year] : '#64748b',
+                color: selectedYears.includes(year) ? colorForYear(year) : '#64748b',
                 fontWeight: selectedYears.includes(year) ? '600' : '400'
               }}>
                 {year}
@@ -173,10 +172,10 @@ function MonthlyComparison({ apiUrl, years, product }) {
                   key={year}
                   type="monotone"
                   dataKey={`year${year}`}
-                  stroke={yearColors[year] || '#64748b'}
+                  stroke={colorForYear(year)}
                   strokeWidth={3}
                   name={`${year}`}
-                  dot={{ fill: yearColors[year] || '#64748b', r: 4 }}
+                  dot={{ fill: colorForYear(year), r: 4 }}
                   activeDot={{ r: 6 }}
                 />
               ))}
@@ -192,7 +191,7 @@ function MonthlyComparison({ apiUrl, years, product }) {
                 <Bar
                   key={year}
                   dataKey={`year${year}`}
-                  fill={yearColors[year] || '#64748b'}
+                  fill={colorForYear(year)}
                   name={`${year}`}
                 />
               ))}

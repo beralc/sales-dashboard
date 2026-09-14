@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { useApiData } from '../hooks/useApiData'
+import PanelError from './PanelError'
 import './TopAsesores.css'
 
 function TopAsesores({ apiUrl, year, years, product }) {
-  const [asesores, setAsesores] = useState([])
-  const [loading, setLoading] = useState(true)
   const [limit, setLimit] = useState(10)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedYear, setSelectedYear] = useState(year)
@@ -15,23 +14,14 @@ function TopAsesores({ apiUrl, year, years, product }) {
     setSelectedYear(year)
   }, [year])
 
-  useEffect(() => {
-    fetchAsesores()
-  }, [selectedYear, limit, product])
-
-  const fetchAsesores = async () => {
-    setLoading(true)
-    try {
-      const response = await axios.get(`${apiUrl}/api/top-asesores`, {
-        params: { year: selectedYear, limit, product }
-      })
-      setAsesores(response.data.data)
-    } catch (err) {
-      console.error('Error fetching asesores:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // While searching, pull a much larger pool: the search box implies it covers
+  // every school, but it filters client-side, so with the default Top 10 a real
+  // school outside the top 10 came back as "no results".
+  const { data, loading, error, retry } = useApiData(
+    `${apiUrl}/api/top-asesores`,
+    { year: selectedYear, limit: searchTerm ? 1000 : limit, product }
+  )
+  const asesores = data?.data ?? []
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-ES', {
@@ -42,10 +32,13 @@ function TopAsesores({ apiUrl, year, years, product }) {
     }).format(value)
   }
 
-  const filteredAsesores = asesores.filter(asesor => {
+  const matchingAsesores = asesores.filter(asesor => {
     const searchLower = searchTerm.toLowerCase()
     return asesor.asesor.toLowerCase().includes(searchLower)
   })
+
+  // The pool is inflated while searching; never render more than the chosen Top N.
+  const visibleAsesores = matchingAsesores.slice(0, limit)
 
   return (
     <div className="top-asesores">
@@ -87,14 +80,20 @@ function TopAsesores({ apiUrl, year, years, product }) {
         )}
       </div>
 
-      {loading ? (
+      {error ? (
+        <PanelError onRetry={retry} />
+      ) : loading ? (
         <div className="loading-spinner">Cargando...</div>
       ) : (
         <div className="asesores-list">
-          {filteredAsesores.length === 0 ? (
-            <div className="no-results">No se encontraron resultados para "{searchTerm}"</div>
+          {visibleAsesores.length === 0 ? (
+            <div className="no-results">
+              {searchTerm
+                ? `No se encontraron resultados para "${searchTerm}"`
+                : 'No hay datos para este año'}
+            </div>
           ) : (
-            filteredAsesores.map((asesor, index) => (
+            visibleAsesores.map((asesor, index) => (
             <div key={index} className="asesor-item">
               <div className="rank">{index + 1}</div>
               <div className="asesor-info">

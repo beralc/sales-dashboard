@@ -1,29 +1,12 @@
-import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { useApiData } from '../hooks/useApiData'
+import PanelError from './PanelError'
 import './RetentionMetrics.css'
 
 function RetentionMetrics({ apiUrl, year1, year2, product }) {
-  const [metrics, setMetrics] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchMetrics()
-  }, [year1, year2, product])
-
-  const fetchMetrics = async () => {
-    setLoading(true)
-    try {
-      const response = await axios.get(`${apiUrl}/api/retention-metrics`, {
-        params: { year1, year2, product }
-      })
-      setMetrics(response.data)
-    } catch (err) {
-      console.error('Error fetching retention metrics:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  const { data: metrics, loading, error, retry } = useApiData(
+    `${apiUrl}/api/retention-metrics`,
+    { year1, year2, product }
+  )
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',
@@ -32,17 +15,21 @@ function RetentionMetrics({ apiUrl, year1, year2, product }) {
       maximumFractionDigits: 0
     }).format(value)
   }
-
+  if (error) {
+    return (
+      <div className="retention-metrics">
+        <h2 className="section-title">Retención de Colegios: {year1} → {year2}</h2>
+        <PanelError onRetry={retry} />
+      </div>
+    )
+  }
   if (loading || !metrics) {
     return null
   }
-
   const { schools, revenue } = metrics
-
   return (
     <div className="retention-metrics">
       <h3 className="metrics-title">Análisis de Retención: {year1} → {year2}</h3>
-
       <div className="metrics-grid">
         {/* Retention Rate */}
         <div className="metric-card retention">
@@ -55,7 +42,6 @@ function RetentionMetrics({ apiUrl, year1, year2, product }) {
             </div>
           </div>
         </div>
-
         {/* Churn Rate */}
         <div className="metric-card churn">
           <div className="metric-icon">📉</div>
@@ -67,7 +53,6 @@ function RetentionMetrics({ apiUrl, year1, year2, product }) {
             </div>
           </div>
         </div>
-
         {/* New Schools */}
         <div className="metric-card new-schools">
           <div className="metric-icon">✨</div>
@@ -79,7 +64,6 @@ function RetentionMetrics({ apiUrl, year1, year2, product }) {
             </div>
           </div>
         </div>
-
         {/* Growth Rate */}
         <div className={`metric-card ${schools.growth_rate >= 0 ? 'growth-positive' : 'growth-negative'}`}>
           <div className="metric-icon">{schools.growth_rate >= 0 ? '📈' : '📉'}</div>
@@ -94,7 +78,6 @@ function RetentionMetrics({ apiUrl, year1, year2, product }) {
             </div>
           </div>
         </div>
-
         {/* Revenue Growth */}
         <div className={`metric-card ${revenue.revenue_growth_rate >= 0 ? 'revenue-positive' : 'revenue-negative'}`}>
           <div className="metric-icon">💰</div>
@@ -108,7 +91,6 @@ function RetentionMetrics({ apiUrl, year1, year2, product }) {
             </div>
           </div>
         </div>
-
         {/* Revenue Breakdown */}
         <div className="metric-card revenue-breakdown">
           <div className="metric-icon">📊</div>
@@ -142,5 +124,4 @@ function RetentionMetrics({ apiUrl, year1, year2, product }) {
     </div>
   )
 }
-
 export default RetentionMetrics

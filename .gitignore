@@ -51,3 +51,10 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# Agent scratch
+.claude/
+
+# Meeting recordings (large binaries, contain customer discussion)
+*.mp4
+*.mov

@@ -9,6 +9,17 @@ function FileManager({ apiUrl, onFileChange }) {
   const [uploadProgress, setUploadProgress] = useState(null)
   const [showManager, setShowManager] = useState(false)
 
+  // Escape closes the dialog - it covers the whole screen and previously the
+  // only way out was the ✕ button.
+  useEffect(() => {
+    if (!showManager) return
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setShowManager(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [showManager])
+
   useEffect(() => {
     fetchFiles()
     fetchConfig()
@@ -122,11 +133,23 @@ function FileManager({ apiUrl, onFileChange }) {
       </button>
 
       {showManager && (
-        <div className="manager-modal">
-          <div className="manager-content">
+        <div
+          className="manager-modal"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowManager(false) }}
+        >
+          <div
+            className="manager-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="manager-title"
+          >
             <div className="manager-header">
-              <h2>Gestión de Archivos Excel</h2>
-              <button className="close-btn" onClick={() => setShowManager(false)}>✕</button>
+              <h2 id="manager-title">Gestión de Archivos Excel</h2>
+              <button
+                className="close-btn"
+                onClick={() => setShowManager(false)}
+                aria-label="Cerrar"
+              >✕</button>
             </div>
 
             <div className="manager-body">
