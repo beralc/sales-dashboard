@@ -3,7 +3,7 @@ import { useApiData } from '../hooks/useApiData'
 import PanelError from './PanelError'
 import './TopColegios.css'
 
-function TopColegios({ apiUrl, year, years, product, baseYear }) {
+function TopColegios({ apiUrl, year, years, product, baseYear, congregacion }) {
   const [limit, setLimit] = useState(10)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedYear, setSelectedYear] = useState(year)
@@ -19,7 +19,7 @@ function TopColegios({ apiUrl, year, years, product, baseYear }) {
   // school outside the top 10 came back as "no results".
   const { data, loading, error, retry } = useApiData(
     `${apiUrl}/api/top-colegios`,
-    { year: selectedYear, limit: searchTerm ? 1000 : limit, product, compare_year: baseYear }
+    { year: selectedYear, limit: searchTerm ? 1000 : limit, product, compare_year: baseYear, congregacion }
   )
   const colegios = data?.data ?? []
 

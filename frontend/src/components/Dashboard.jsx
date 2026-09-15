@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { useApiData } from '../hooks/useApiData'
+import { getProductConfig } from '../productConfig'
 import './Dashboard.css'
 import TopColegios from './TopColegios'
 import TopAsesores from './TopAsesores'
@@ -11,15 +13,23 @@ import NewColegios from './NewColegios'
 import RetentionMetrics from './RetentionMetrics'
 import AsesoresPerformance from './AsesoresPerformance'
 
-function Dashboard({ years, apiUrl, selectedProduct }) {
+function Dashboard({ years, apiUrl, products = [], selectedProducts = [], onProductsChange }) {
+  // An empty selection means every product; the API takes a comma-separated list.
+  const selectedProduct = selectedProducts.length ? selectedProducts.join(',') : undefined
+
+  const toggleProduct = (slug) =>
+    onProductsChange(
+      selectedProducts.includes(slug)
+        ? selectedProducts.filter((p) => p !== slug)
+        : [...selectedProducts, slug]
+    )
+
   const [selectedYear1, setSelectedYear1] = useState(years[years.length - 1] || 2025)
   const [selectedYear2, setSelectedYear2] = useState(years[years.length - 2] || 2024)
   const [summary, setSummary] = useState(null)
   const [baseSummary, setBaseSummary] = useState(null)
-
-  // Products that don't have retention metrics (transactional, not subscription-based)
-  const nonRetentionProducts = ['dispositivos', 'ondemand']
-  const showRetentionMetrics = !nonRetentionProducts.includes(selectedProduct?.toLowerCase())
+  const [congregacion, setCongregacion] = useState('')
+  const { data: congregationData } = useApiData(`${apiUrl}/api/congregacion-list`, {})
 
   // Fetch both years so the summary cards can show the year-over-year change
   // against the same base year the rest of the dashboard compares to.
@@ -30,10 +40,10 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
       try {
         const [current, base] = await Promise.all([
           axios.get(`${apiUrl}/api/summary`, {
-            params: { year: selectedYear1, product: selectedProduct, compare_year: selectedYear2 }
+            params: { year: selectedYear1, product: selectedProduct, compare_year: selectedYear2, congregacion: congregacion || undefined }
           }),
           axios.get(`${apiUrl}/api/summary`, {
-            params: { year: selectedYear2, product: selectedProduct, compare_year: selectedYear1 }
+            params: { year: selectedYear2, product: selectedProduct, compare_year: selectedYear1, congregacion: congregacion || undefined }
           })
         ])
         if (cancelled) return
@@ -48,7 +58,7 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
 
     // Filters can change faster than the requests resolve; ignore stale replies.
     return () => { cancelled = true }
-  }, [apiUrl, selectedYear1, selectedYear2, selectedProduct])
+  }, [apiUrl, selectedYear1, selectedYear2, selectedProduct, congregacion])
 
   const handleYear1Change = (e) => {
     const newYear1 = parseInt(e.target.value)
@@ -93,7 +103,43 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
             ))}
           </select>
         </div>
+        <div className="control-group">
+          <label htmlFor="congregacion">Congregación:</label>
+          <select id="congregacion" value={congregacion} onChange={(e) => setCongregacion(e.target.value)}>
+            <option value="">Todas</option>
+            {(congregationData?.congregaciones ?? []).map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+            <option value="__SIN__">Sin congregación</option>
+          </select>
+        </div>
       </div>
+
+      {products.length > 1 && (
+        <div className="product-filter">
+          <span className="product-filter-label">Productos:</span>
+          <button
+            className={`chip${selectedProducts.length === 0 ? ' on' : ''}`}
+            onClick={() => onProductsChange([])}
+          >
+            Todos
+          </button>
+          {products.map((slug) => (
+            <button
+              key={slug}
+              className={`chip${selectedProducts.includes(slug) ? ' on' : ''}`}
+              onClick={() => toggleProduct(slug)}
+            >
+              {getProductConfig(slug).name}
+            </button>
+          ))}
+          {selectedProducts.length > 0 && (
+            <button className="chip chip-clear" onClick={() => onProductsChange([])}>
+              ✕ Limpiar filtros
+            </button>
+          )}
+        </div>
+      )}
 
       <DataCoverage
         apiUrl={apiUrl}
@@ -110,13 +156,12 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
         />
       )}
 
-      {showRetentionMetrics && (
-        <RetentionMetrics apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
-      )}
+      {/* Shown for every product. Retention used to be hidden for transactional
+          lines (dispositivos, ondemand); the team wants the asesor panels
+          everywhere, reading "perdido" there as "did not buy again". */}
+      <RetentionMetrics apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
 
-      {showRetentionMetrics && (
-        <AsesoresPerformance apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
-      )}
+      <AsesoresPerformance apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
 
       <div className="dashboard-grid">
         <div className="dashboard-section full-width">
@@ -134,6 +179,7 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
             baseYear={selectedYear2}
             years={years}
             product={selectedProduct}
+            congregacion={congregacion || undefined}
           />
         </div>
 
@@ -144,6 +190,7 @@ function Dashboard({ years, apiUrl, selectedProduct }) {
             baseYear={selectedYear2}
             years={years}
             product={selectedProduct}
+            congregacion={congregacion || undefined}
           />
         </div>
 

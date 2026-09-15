@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from auth import AuthError, verify_bearer_token
 from contextlib import asynccontextmanager
@@ -12,6 +12,8 @@ import os
 import json
 from pathlib import Path
 import shutil
+import csv
+import io
 
 # Global variable to store the dataframe
 df = None
@@ -239,13 +241,114 @@ def comparison_cutoff(*years: int) -> Optional[str]:
     return cutoff if any(y == partial_year for y in years) else None
 
 
+# The ERP leaves Congregación Envío empty, "." or whitespace for schools that
+# belong to no congregation. That is 47% of rows, so it is a real category
+# rather than dirty data, and the UI offers it as its own view.
+NO_CONGREGACION = {".", "", "-", "nan", "none", "sin congregacion", "sin congregación"}
+
+
+def congregation_series(data_df: pd.DataFrame) -> pd.Series:
+    """Congregación per row, with the ERP's placeholders turned into NaN."""
+    if data_df.empty or 'Congregación Envío' not in data_df.columns:
+        return pd.Series(dtype=object, index=data_df.index)
+
+    values = data_df['Congregación Envío'].astype(str).str.strip()
+    blank = data_df['Congregación Envío'].isna() | values.str.lower().isin(NO_CONGREGACION)
+    return values.where(~blank, other=None)
+
+
+def product_of_row(data_df: pd.DataFrame) -> pd.Series:
+    """Map each row's Tipo Publicación to its configured product slug."""
+    mappings = load_config().get("product_mappings", {})
+    code_to_product = {}
+    for slug, mapping in mappings.items():
+        codes = mapping if isinstance(mapping, list) else mapping.get("product_codes", [])
+        for code in codes:
+            code_to_product[code] = slug
+
+    if data_df.empty or 'Tipo Publicación' not in data_df.columns:
+        return pd.Series(dtype=object, index=data_df.index)
+    return data_df['Tipo Publicación'].map(code_to_product)
+
+
+# Display names for the product slugs, mirroring frontend/src/productConfig.js.
+# The CSV is opened in Excel by people who have never seen a slug.
+PRODUCT_LABELS = {
+    "ta-tum": "Ta-Tum",
+    "gosteam": "GoSteam",
+    "goproject": "GoProject",
+    "globaleduca": "GlobalEduca",
+    "dispositivos": "Dispositivos",
+    "ondemand": "On Demand",
+}
+
+
+def product_label(slug: str) -> str:
+    return PRODUCT_LABELS.get(slug, slug.replace("-", " ").title())
+
+
+def available_products() -> List[str]:
+    """Configured products that actually have rows in the active file.
+
+    Without this the congregation matrix grows a column for every configured
+    brand, including ones the current export contains nothing for.
+    """
+    mappings = load_config().get("product_mappings", {})
+    if df.empty or 'Tipo Publicación' not in df.columns:
+        return []
+
+    present = set(df['Tipo Publicación'].dropna().unique())
+    out = []
+    for slug, mapping in mappings.items():
+        codes = mapping if isinstance(mapping, list) else mapping.get("product_codes", [])
+        if any(code in present for code in codes):
+            out.append(slug)
+    return sorted(out)
+
+
+def filter_by_products(data_df: pd.DataFrame, products: Optional[List[str]]) -> pd.DataFrame:
+    """Keep rows belonging to any of `products`.
+
+    The sales view shows one product at a time; the congregation view shows
+    several at once, so this is the multi-select counterpart of
+    filter_by_product. An empty or missing list means every configured product.
+    """
+    if data_df.empty:
+        return data_df
+
+    slugs = [p.strip().lower() for p in (products or []) if p and p.strip()]
+    mapped = product_of_row(data_df)
+
+    if not slugs or 'todos' in slugs:
+        # Still drop rows whose Tipo Publicación maps to no configured product,
+        # so totals here reconcile with the per-product views.
+        return data_df[mapped.notna()]
+
+    return data_df[mapped.isin(slugs)]
+
+
 def filter_by_product(data_df: pd.DataFrame, product: Optional[str]) -> pd.DataFrame:
-    """Filter dataframe by product (Tipo Publicación) and optionally by Asesor"""
+    """Filter dataframe by product (Tipo Publicación) and optionally by Asesor.
+
+    `product` accepts a comma-separated list ("ta-tum,dispositivos") so the sales
+    dashboard can show several products at once. Handling it here means every
+    endpoint that already takes a `product` gains multi-select without a
+    signature change. A single slug keeps its existing behaviour, including the
+    per-product asesor_filter that a list cannot express.
+    """
     if data_df.empty or not product or product.lower() == 'todos':
         return data_df
 
     if 'Tipo Publicación' not in data_df.columns:
         return data_df
+
+    if ',' in product:
+        slugs = [p.strip().lower() for p in product.split(',') if p.strip()]
+        if not slugs:
+            return data_df
+        if len(slugs) == 1:
+            return filter_by_product(data_df, slugs[0])
+        return filter_by_products(data_df, slugs)
 
     # Load product mappings from config
     config = load_config()
@@ -411,13 +514,19 @@ async def get_top_colegios(
     month: Optional[str] = Query(None, description="Filter by month (YYYY/MM)"),
     product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
     limit: int = Query(10, description="Number of top colegios to return"),
-    compare_year: Optional[int] = Query(None, description="Other year in the comparison, so the period matches the summary")
+    compare_year: Optional[int] = Query(None, description="Other year in the comparison, so the period matches the summary"),
+    congregacion: Optional[str] = Query(None, description="Exact congregación name, or __SIN__ for rows with none")
 ):
     """Get top colegios by total neto"""
     filtered_df = df.copy()
 
     # Apply product filter
     filtered_df = filter_by_product(filtered_df, product)
+
+    if congregacion:
+        congr = congregation_series(filtered_df)
+        mask = congr.isna() if congregacion == "__SIN__" else (congr == congregacion)
+        filtered_df = filtered_df[mask]
 
     # Apply filters
     if year:
@@ -430,6 +539,10 @@ async def get_top_colegios(
 
     if month:
         filtered_df = filtered_df[filtered_df['Month'] == month]
+
+    if congregacion == "__SIN__":
+        filtered_df = filtered_df.copy()
+        filtered_df['Congregación Envío'] = "SIN CONGREGACION"
 
     # Group by colegio and sum total neto
     top_colegios = (
@@ -456,13 +569,19 @@ async def get_top_asesores(
     month: Optional[str] = Query(None, description="Filter by month (YYYY/MM)"),
     product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
     limit: int = Query(10, description="Number of top asesores to return"),
-    compare_year: Optional[int] = Query(None, description="Other year in the comparison, so the period matches the summary")
+    compare_year: Optional[int] = Query(None, description="Other year in the comparison, so the period matches the summary"),
+    congregacion: Optional[str] = Query(None, description="Exact congregación name, or __SIN__ for rows with none")
 ):
     """Get top asesores (sales reps) by total neto"""
     filtered_df = df.copy()
 
     # Apply product filter
     filtered_df = filter_by_product(filtered_df, product)
+
+    if congregacion:
+        congr = congregation_series(filtered_df)
+        mask = congr.isna() if congregacion == "__SIN__" else (congr == congregacion)
+        filtered_df = filtered_df[mask]
 
     # Apply filters
     if year:
@@ -566,13 +685,19 @@ async def get_summary(
     year: Optional[int] = Query(None, description="Filter by year"),
     month: Optional[str] = Query(None, description="Filter by month (YYYY/MM)"),
     product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
-    compare_year: Optional[int] = Query(None, description="The other year in the comparison, so both sides clamp to the same period")
+    compare_year: Optional[int] = Query(None, description="The other year in the comparison, so both sides clamp to the same period"),
+    congregacion: Optional[str] = Query(None, description="Exact congregación name, or __SIN__ for rows with none")
 ):
     """Get summary statistics"""
     filtered_df = df.copy()
 
     # Apply product filter
     filtered_df = filter_by_product(filtered_df, product)
+
+    if congregacion:
+        congr = congregation_series(filtered_df)
+        mask = congr.isna() if congregacion == "__SIN__" else (congr == congregacion)
+        filtered_df = filtered_df[mask]
 
     # Apply filters
     if year:
@@ -873,6 +998,290 @@ async def get_asesores_performance(
         "top_lost": top_lost,
         "all_asesores": asesores_stats
     }
+
+@app.get("/api/congregaciones")
+async def get_congregaciones(
+    year: int = Query(..., description="Year to report"),
+    compare_year: Optional[int] = Query(None, description="Year to compare against"),
+    products: Optional[str] = Query(None, description="Comma-separated product slugs; empty means all"),
+    scope: str = Query("todos", description="todos | con | sin"),
+    limit: int = Query(100, ge=1, le=1000)
+):
+    """Revenue by congregación, broken down per product, with a YoY comparison.
+
+    This is the aggregation the sales team actually works at: 154 congregations
+    rather than 5,000 schools. Products are columns instead of a single-select
+    filter, so one row shows what a congregation buys across every vertical.
+    """
+    slugs = [p for p in (products or "").split(",") if p.strip()]
+    cutoff = comparison_cutoff(year, compare_year) if compare_year else comparison_cutoff(year)
+
+    def slice_year(y):
+        frame = df[df['Año Factura'] == y]
+        frame = filter_by_products(frame, slugs)
+        return clamp_to_period(frame, cutoff)
+
+    current = slice_year(year)
+    base = slice_year(compare_year) if compare_year else current.iloc[0:0]
+
+    all_products = available_products()
+    active_products = [p for p in all_products if not slugs or p in slugs]
+
+    def aggregate(frame):
+        """-> {congregación: {"total": x, "colegios": n, "productos": {...}}}"""
+        if frame.empty:
+            return {}
+        work = frame.copy()
+        work['_congr'] = congregation_series(work)
+        work['_prod'] = product_of_row(work)
+        work = work[work['_congr'].notna()]
+        if work.empty:
+            return {}
+
+        totals = work.groupby('_congr')['Total neto'].sum()
+        schools = work.groupby('_congr')['Colegio'].nunique()
+        by_product = work.groupby(['_congr', '_prod'])['Total neto'].sum()
+
+        out = {}
+        for name in totals.index:
+            per_product = {}
+            if name in by_product.index.get_level_values(0):
+                per_product = {k: float(v) for k, v in by_product.loc[name].items()}
+            out[name] = {
+                "total": float(totals[name]),
+                "colegios": int(schools.get(name, 0)),
+                "productos": {p: per_product.get(p, 0.0) for p in active_products},
+            }
+        return out
+
+    cur_agg, base_agg = aggregate(current), aggregate(base)
+
+    rows = []
+    for name in set(cur_agg) | set(base_agg):
+        c = cur_agg.get(name, {"total": 0.0, "colegios": 0, "productos": {}})
+        b = base_agg.get(name, {"total": 0.0, "colegios": 0, "productos": {}})
+        rows.append({
+            "congregacion": name,
+            "colegios": c["colegios"],
+            "total": c["total"],
+            "base_total": b["total"],
+            "productos": {p: c["productos"].get(p, 0.0) for p in active_products},
+            "base_productos": {p: b["productos"].get(p, 0.0) for p in active_products},
+        })
+    rows.sort(key=lambda r: r["total"], reverse=True)
+
+    def bucket(frame, with_congregation):
+        if frame.empty:
+            return 0.0
+        congr = congregation_series(frame)
+        mask = congr.notna() if with_congregation else congr.isna()
+        return float(frame[mask]['Total neto'].sum())
+
+    return {
+        "year": year,
+        "compare_year": compare_year,
+        "cutoff_month": int(cutoff) if cutoff else None,
+        # `products` are the columns for the current filter; `all_products` is
+        # every product available, so the chip row keeps offering the ones not
+        # currently selected. Without it, selecting one hid all the others and
+        # made the filter effectively single-select.
+        "products": active_products,
+        "all_products": all_products,
+        "scope": scope,
+        "totals": {
+            "con_congregacion": bucket(current, True),
+            "sin_congregacion": bucket(current, False),
+            "con_congregacion_base": bucket(base, True),
+            "sin_congregacion_base": bucket(base, False),
+        },
+        "total_congregaciones": len(rows),
+        "data": rows[:limit],
+    }
+
+
+@app.get("/api/congregaciones/export")
+async def export_congregaciones(
+    year: int = Query(..., description="Year to report"),
+    compare_year: Optional[int] = Query(None, description="Year to compare against"),
+    products: Optional[str] = Query(None, description="Comma-separated product slugs; empty means all"),
+    scope: str = Query("todos", description="todos | con | sin"),
+    limit: int = Query(100, ge=1, le=1000)
+):
+    """Export the congregation matrix for Spanish Excel."""
+    result = await get_congregaciones(
+        year=year, compare_year=compare_year, products=products, scope=scope, limit=100000
+    )
+
+    def decimal(value):
+        return f"{value:.2f}".replace(".", ",")
+
+    def generate():
+        yield b'\xef\xbb\xbf'
+        buffer = io.StringIO()
+        writer = csv.writer(buffer, delimiter=";")
+        writer.writerow([
+            "Congregación", "Nº colegios", f"Total {year}",
+            f"Total {compare_year}" if compare_year else "Total base",
+            "% variación", *[product_label(p) for p in result["products"]]
+        ])
+        yield buffer.getvalue().encode("utf-8")
+        for row in result["data"]:
+            buffer.seek(0)
+            buffer.truncate(0)
+            base = row["base_total"]
+            variation = decimal((row["total"] - base) / base * 100) if base > 0 else ""
+            writer.writerow([
+                row["congregacion"], row["colegios"], decimal(row["total"]),
+                decimal(base), variation,
+                *[decimal(row["productos"].get(p, 0.0)) for p in result["products"]]
+            ])
+            yield buffer.getvalue().encode("utf-8")
+
+    return StreamingResponse(
+        generate(), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="congregaciones_{year}.csv"'}
+    )
+
+
+@app.get("/api/congregacion-list")
+async def get_congregacion_list():
+    """List the normalized congregation names for the sales filter."""
+    return {"congregaciones": sorted(congregation_series(df).dropna().unique().tolist())}
+
+
+@app.get("/api/congregacion-asesores")
+async def get_congregacion_asesores(
+    year: int = Query(..., description="Year to report"),
+    compare_year: Optional[int] = Query(None, description="Year to compare against"),
+    products: Optional[str] = Query(None, description="Comma-separated product slugs; empty means all"),
+    congregacion: Optional[str] = Query(None, description="Exact congregación name, or __SIN__ for rows with none"),
+    limit: int = Query(15, ge=1, le=200)
+):
+    """Revenue by asesor across the selected congregations and products."""
+    slugs = [p for p in (products or "").split(",") if p.strip()]
+    cutoff = comparison_cutoff(year, compare_year) if compare_year else comparison_cutoff(year)
+
+    def slice_year(y):
+        frame = df[df['Año Factura'] == y]
+        frame = filter_by_products(frame, slugs)
+        frame = clamp_to_period(frame, cutoff)
+        if congregacion:
+            congr = congregation_series(frame)
+            mask = congr.isna() if congregacion == "__SIN__" else (congr == congregacion)
+            frame = frame[mask]
+        return frame
+
+    current = slice_year(year)
+    base = slice_year(compare_year) if compare_year else current.iloc[0:0]
+
+    all_products = available_products()
+    active_products = [p for p in all_products if not slugs or p in slugs]
+
+    def aggregate(frame):
+        if frame.empty:
+            return {}
+        work = frame.copy()
+        work['_congr'] = congregation_series(work)
+        work['_prod'] = product_of_row(work)
+        totals = work.groupby('Asesor')['Total neto'].sum()
+        schools = work.groupby('Asesor')['Colegio'].nunique()
+        congregations = work.groupby('Asesor')['_congr'].nunique()
+        by_product = work.groupby(['Asesor', '_prod'])['Total neto'].sum()
+
+        out = {}
+        for name in totals.index:
+            per_product = {}
+            if name in by_product.index.get_level_values(0):
+                per_product = {k: float(v) for k, v in by_product.loc[name].items()}
+            out[name] = {
+                "total": float(totals[name]),
+                "colegios": int(schools.get(name, 0)),
+                "congregaciones": int(congregations.get(name, 0)),
+                "productos": {p: per_product.get(p, 0.0) for p in active_products},
+            }
+        return out
+
+    cur_agg, base_agg = aggregate(current), aggregate(base)
+    rows = []
+    for name in set(cur_agg) | set(base_agg):
+        c = cur_agg.get(name, {"total": 0.0, "colegios": 0, "congregaciones": 0, "productos": {}})
+        b = base_agg.get(name, {"total": 0.0})
+        rows.append({
+            "asesor": name,
+            "total": c["total"],
+            "base_total": b["total"],
+            "colegios": c["colegios"],
+            "congregaciones": c["congregaciones"],
+            "productos": {p: c["productos"].get(p, 0.0) for p in active_products},
+        })
+    rows.sort(key=lambda r: r["total"], reverse=True)
+    return {"data": rows[:limit], "products": active_products}
+
+
+@app.get("/api/congregacion-colegios")
+async def get_congregacion_colegios(
+    congregacion: str = Query(..., description="Exact congregación name, or __SIN__ for schools with none"),
+    year: int = Query(..., description="Year to report"),
+    compare_year: Optional[int] = Query(None, description="Year to compare against"),
+    products: Optional[str] = Query(None, description="Comma-separated product slugs"),
+    limit: int = Query(200, ge=1, le=2000)
+):
+    """The schools inside one congregación - the drill-down behind a row."""
+    slugs = [p for p in (products or "").split(",") if p.strip()]
+    cutoff = comparison_cutoff(year, compare_year) if compare_year else comparison_cutoff(year)
+
+    def slice_year(y):
+        frame = df[df['Año Factura'] == y]
+        frame = filter_by_products(frame, slugs)
+        frame = clamp_to_period(frame, cutoff)
+        if frame.empty:
+            return frame
+        congr = congregation_series(frame)
+        mask = congr.isna() if congregacion == "__SIN__" else (congr == congregacion)
+        return frame[mask]
+
+    current = slice_year(year)
+    base = slice_year(compare_year) if compare_year else current.iloc[0:0]
+
+    all_products = available_products()
+    active_products = [p for p in all_products if not slugs or p in slugs]
+
+    def per_school(frame):
+        if frame.empty or 'Colegio' not in frame.columns:
+            return {}, {}
+        work = frame[frame['Colegio'].notna()].copy()
+        if work.empty:
+            return {}, {}
+        work['_prod'] = product_of_row(work)
+        totals = work.groupby('Colegio')['Total neto'].sum()
+        by_product = work.groupby(['Colegio', '_prod'])['Total neto'].sum()
+        return totals, by_product
+
+    cur_totals, cur_products = per_school(current)
+    base_totals, _ = per_school(base)
+
+    rows = []
+    for school in (set(cur_totals.index) | set(base_totals.index)) if len(cur_totals) or len(base_totals) else []:
+        per_product = {}
+        if len(cur_products) and school in cur_products.index.get_level_values(0):
+            per_product = {k: float(v) for k, v in cur_products.loc[school].items()}
+        rows.append({
+            "colegio": school,
+            "total": float(cur_totals.get(school, 0.0)),
+            "base_total": float(base_totals.get(school, 0.0)),
+            "productos": {p: per_product.get(p, 0.0) for p in active_products},
+        })
+    rows.sort(key=lambda r: r["total"], reverse=True)
+
+    return {
+        "congregacion": congregacion,
+        "year": year,
+        "compare_year": compare_year,
+        "products": active_products,
+        "total_colegios": len(rows),
+        "data": rows[:limit],
+    }
+
 
 # ============ FILE UPLOAD AND CONFIGURATION ENDPOINTS ============
 

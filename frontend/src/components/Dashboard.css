@@ -104,3 +104,24 @@
     font-size: 1.1rem;
   }
 }
+
+/* Product multi-select. Replaces the single-product dropdown that used to sit
+   in the header, so several products can be compared at once. */
+.product-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 2rem;
+  padding: 0.85rem 1.25rem;
+  background: var(--card-bg);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.product-filter-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-right: 0.2rem;
+}

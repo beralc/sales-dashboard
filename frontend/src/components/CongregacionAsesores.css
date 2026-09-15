@@ -1,0 +1,7 @@
+.congregacion-asesores .asesor-label::before {
+  content: none;
+}
+
+.congregacion-asesores .asesor-revenue {
+  text-align: right;
+}

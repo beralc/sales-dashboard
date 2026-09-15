@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import './App.css'
 import Dashboard from './components/Dashboard'
+import CongregacionesPage from './components/CongregacionesPage'
 import FileManager from './components/FileManager'
 import Login from './components/Login'
 import { getProductConfig, getOnPrimaryColor } from './productConfig'
@@ -13,9 +14,23 @@ function App() {
   const { user, loading: authLoading, logout, isAuthenticated } = useAuth()
   const [years, setYears] = useState([])
   const [products, setProducts] = useState([])
-  const [selectedProduct, setSelectedProduct] = useState('ta-tum')
+  // Several products can be shown at once; an empty list means all of them.
+  const [selectedProducts, setSelectedProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [path, setPath] = useState(window.location.pathname)
+
+  // Two views, so a pathname check beats adding a router dependency.
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  const navigate = (to) => {
+    window.history.pushState({}, '', to)
+    setPath(to)
+  }
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -25,11 +40,15 @@ function App() {
 
   useEffect(() => {
     // Apply product colors to CSS variables
-    const productConfig = getProductConfig(selectedProduct)
+    // With more than one product on screen, no single brand colour is correct,
+    // so fall back to the neutral theme rather than implying one of them.
+    const themeKey = selectedProducts.length === 1 ? selectedProducts[0] : null
+    const productConfig = getProductConfig(themeKey ?? 'dispositivos')
     document.documentElement.style.setProperty('--primary-color', productConfig.colors.primary)
     document.documentElement.style.setProperty('--secondary-color', productConfig.colors.secondary)
-    document.documentElement.style.setProperty('--on-primary-color', getOnPrimaryColor(selectedProduct))
-  }, [selectedProduct])
+    document.documentElement.style.setProperty(
+      '--on-primary-color', getOnPrimaryColor(themeKey ?? 'dispositivos'))
+  }, [selectedProducts])
 
   const fetchInitialData = async () => {
     try {
@@ -40,11 +59,6 @@ function App() {
 
       setYears(yearsRes.data.years)
       setProducts(productsRes.data.products)
-
-      // Set first available product as default
-      if (productsRes.data.products.length > 0) {
-        setSelectedProduct(productsRes.data.products[0])
-      }
 
       setLoading(false)
     } catch (err) {
@@ -85,38 +99,39 @@ function App() {
     )
   }
 
-  const productConfig = getProductConfig(selectedProduct)
+  const productConfig = selectedProducts.length === 1
+    ? getProductConfig(selectedProducts[0])
+    : null
+  // The congregation view spans every product, so the product branding and
+  // single-product selector would both misrepresent what is on screen.
+  const isCongregaciones = path === '/congregaciones'
 
   return (
     <div className="app">
       <header className="app-header">
-        {productConfig.logo ? (
+        {isCongregaciones ? (
+          <span className="app-logo-text">Congregaciones</span>
+        ) : productConfig?.logo ? (
           <img src={productConfig.logo} alt={`${productConfig.name} Logo`} className="app-logo" />
         ) : (
-          <span className="app-logo-text">{productConfig.name}</span>
+          <span className="app-logo-text">{productConfig?.name ?? 'Panel de Ventas'}</span>
         )}
         <div className="header-controls">
+          <nav className="view-nav">
+            <button
+              className={path !== '/congregaciones' ? 'active' : ''}
+              onClick={() => navigate('/')}
+            >
+              Ventas
+            </button>
+            <button
+              className={path === '/congregaciones' ? 'active' : ''}
+              onClick={() => navigate('/congregaciones')}
+            >
+              Congregaciones
+            </button>
+          </nav>
           <FileManager apiUrl={API_URL} onFileChange={fetchInitialData} />
-          {products.length > 1 && (
-            <div className="product-selector">
-              <label htmlFor="product-select">Producto:</label>
-              <select
-                id="product-select"
-                value={selectedProduct}
-                onChange={(e) => setSelectedProduct(e.target.value)}
-                className="product-select"
-              >
-                {products.map(product => {
-                  const config = getProductConfig(product)
-                  return (
-                    <option key={product} value={product}>
-                      {config.name}
-                    </option>
-                  )
-                })}
-              </select>
-            </div>
-          )}
           <div className="user-menu">
             <span className="user-email">{user?.email}</span>
             <button className="logout-btn" onClick={logout} title="Cerrar sesión">
@@ -125,7 +140,17 @@ function App() {
           </div>
         </div>
       </header>
-      <Dashboard years={years} apiUrl={API_URL} selectedProduct={selectedProduct} />
+      {path === '/congregaciones' ? (
+        <CongregacionesPage years={years} apiUrl={API_URL} />
+      ) : (
+        <Dashboard
+          years={years}
+          apiUrl={API_URL}
+          products={products}
+          selectedProducts={selectedProducts}
+          onProductsChange={setSelectedProducts}
+        />
+      )}
     </div>
   )
 }

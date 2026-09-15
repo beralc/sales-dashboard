@@ -198,3 +198,26 @@ body {
   margin-top: 1rem;
   text-align: left;
 }
+
+/* Switch between the sales and congregation views */
+.view-nav {
+  display: inline-flex;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.view-nav button {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+}
+
+.view-nav button.active {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}

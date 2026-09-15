@@ -1,0 +1,228 @@
+.congregaciones {
+  margin-bottom: 2rem;
+}
+
+.congr-controls {
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.5rem;
+}
+
+.scope-switch {
+  display: inline-flex;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 0.9rem;
+}
+
+.scope-switch button {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 0;
+  background: var(--card-bg);
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+}
+
+.scope-switch button.active {
+  background: var(--primary-color);
+  color: var(--on-primary-color, #fff);
+}
+
+.product-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.chips-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  margin-right: 0.15rem;
+}
+
+.chip {
+  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--card-bg);
+  color: var(--text-secondary, #64748b);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chip.on {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: var(--on-primary-color, #fff);
+}
+
+.congr-export {
+  float: right;
+}
+
+.congr-export:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.congr-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.congr-kpi {
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 1rem 1.15rem;
+  box-shadow: var(--shadow);
+}
+
+.congr-kpi h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+}
+
+.kpi-value {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+/* Wide matrices scroll inside the card rather than the page. */
+.congr-table-wrap {
+  overflow-x: auto;
+  background: var(--card-bg);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.congr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.congr-table th {
+  position: sticky;
+  top: 0;
+  background: #f1f5f9;
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary, #64748b);
+  padding: 0.7rem 0.8rem;
+  border-bottom: 2px solid var(--border-color, #e2e8f0);
+  white-space: nowrap;
+}
+
+.congr-table td {
+  padding: 0.65rem 0.8rem;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  vertical-align: top;
+}
+
+.congr-table .num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.congr-parent {
+  cursor: pointer;
+}
+
+.congr-parent:hover {
+  background: #f8fafc;
+}
+
+.congr-name {
+  font-weight: 600;
+  min-width: 260px;
+}
+
+.congr-sub {
+  display: block;
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--text-secondary, #64748b);
+  margin-top: 0.15rem;
+}
+
+.twisty {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.65rem;
+  margin-right: 0.4rem;
+}
+
+.congr-total {
+  font-weight: 700;
+}
+
+.congr-change {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-top: 0.15rem;
+}
+
+.congr-change.up { color: #15803d; }
+.congr-change.down { color: #b91c1c; }
+.congr-change.flat,
+.congr-change.new { color: #64748b; }
+
+.zero { color: #cbd5e1; }
+
+.congr-child {
+  background: #fbfdff;
+}
+
+.congr-child td {
+  font-size: 0.83rem;
+  color: var(--text-secondary, #475569);
+}
+
+.child-name {
+  padding-left: 2.1rem !important;
+}
+
+.child-status {
+  font-style: italic;
+  color: var(--text-secondary, #64748b);
+}
+
+.child-status.error {
+  color: #b91c1c;
+  font-style: normal;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .congr-table { font-size: 0.8rem; }
+  .congr-name { min-width: 180px; }
+}
+
+/* Only shown while a filter is active. */
+.chip-clear {
+  border-style: dashed;
+  color: #b91c1c;
+  border-color: #fca5a5;
+  background: var(--card-bg);
+}
+
+.chip-clear:hover {
+  background: rgba(185, 28, 28, 0.06);
+}
