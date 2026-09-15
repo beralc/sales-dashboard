@@ -287,6 +287,56 @@ def product_label(slug: str) -> str:
     return PRODUCT_LABELS.get(slug, slug.replace("-", " ").title())
 
 
+def require_admin(request: Request) -> None:
+    """Allow only configured administrators to change the dataset.
+
+    Authentication proves someone works here; it does not mean everyone should
+    be able to swap the active export or rewrite the product mappings for the
+    whole team. Administrators are listed in config.json ("admin_emails") so the
+    list can change without a deploy.
+
+    When the key is absent every authenticated user is still allowed, which
+    keeps existing installs working; a warning is logged so the gap is visible.
+    """
+    admins = load_config().get("admin_emails")
+
+    if admins is None:
+        print("WARNING: no admin_emails in config.json - any authenticated "
+              "user can change the active dataset")
+        return
+
+    email = (getattr(request.state, "user_email", None) or "").lower()
+    allowed = {str(a).strip().lower() for a in admins if str(a).strip()}
+
+    if email not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo los administradores pueden modificar los datos."
+        )
+
+
+def safe_data_path(filename: str) -> str:
+    """Resolve `filename` inside data_dir, refusing anything that escapes it.
+
+    The filename arrives from the client. os.path.join happily accepts
+    "../../etc/cron.d/x.xlsx", and the .xlsx suffix check does not constrain the
+    directory, so without this a request could write outside data_dir - and the
+    service runs as root.
+    """
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    name = os.path.basename(filename)
+    if name != filename or name in ("", ".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    resolved = os.path.realpath(os.path.join(data_dir, name))
+    if not resolved.startswith(os.path.realpath(data_dir) + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    return resolved
+
+
 def available_products() -> List[str]:
     """Configured products that actually have rows in the active file.
 
@@ -1286,13 +1336,15 @@ async def get_congregacion_colegios(
 # ============ FILE UPLOAD AND CONFIGURATION ENDPOINTS ============
 
 @app.post("/api/upload-file")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(request: Request, file: UploadFile = File(...)):
     """Upload an Excel file"""
+    require_admin(request)
+
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="Only Excel files are allowed")
 
     # Save the uploaded file
-    file_path = os.path.join(data_dir, file.filename)
+    file_path = safe_data_path(file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
@@ -1320,7 +1372,7 @@ async def list_files():
     files = []
     for filename in os.listdir(data_dir):
         if filename.endswith(('.xlsx', '.xls')):
-            file_path = os.path.join(data_dir, filename)
+            file_path = safe_data_path(filename)
             files.append({
                 "filename": filename,
                 "size": os.path.getsize(file_path),
@@ -1329,13 +1381,15 @@ async def list_files():
     return {"files": sorted(files, key=lambda x: x['modified'], reverse=True)}
 
 @app.post("/api/set-active-file")
-async def set_active_file(data: Dict):
+async def set_active_file(request: Request, data: Dict):
     """Set the active Excel file to load"""
+    require_admin(request)
+
     filename = data.get("filename")
     if not filename:
         raise HTTPException(status_code=400, detail="Filename is required")
 
-    file_path = os.path.join(data_dir, filename)
+    file_path = safe_data_path(filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -1355,8 +1409,10 @@ async def get_config():
     return load_config()
 
 @app.post("/api/update-mappings")
-async def update_mappings(data: Dict):
+async def update_mappings(request: Request, data: Dict):
     """Update product mappings"""
+    require_admin(request)
+
     product_mappings = data.get("product_mappings")
     if not product_mappings:
         raise HTTPException(status_code=400, detail="product_mappings is required")
@@ -1370,7 +1426,7 @@ async def update_mappings(data: Dict):
 @app.get("/api/file-products")
 async def get_file_products(filename: str):
     """Get all products from a specific file"""
-    file_path = os.path.join(data_dir, filename)
+    file_path = safe_data_path(filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
