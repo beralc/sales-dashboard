@@ -1,5 +1,10 @@
 import './SummaryCards.css'
 
+const MONTHS = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+]
+
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('es-ES', {
     style: 'currency',
@@ -62,6 +67,16 @@ function DeltaBadge({ delta, baseYear, format }) {
 }
 
 function SummaryCards({ summary, baseSummary, year, baseYear }) {
+  // The headline card is clamped to whole months so the year-over-year figure
+  // compares like periods. That hides the month in progress - September 2026
+  // alone was 3.4M - so the accrued total is shown beside it when they differ.
+  const accrued = summary.accrued_revenue
+  const showAccrued =
+    typeof accrued === 'number' && Math.round(accrued) !== Math.round(summary.total_revenue)
+  const accruedMonth = summary.accrued_through
+    ? MONTHS[parseInt(summary.accrued_through.slice(5, 7), 10) - 1]
+    : null
+
   const revenueDelta = getDelta(summary.total_revenue, baseSummary?.total_revenue)
   const colegiosDelta = getDelta(summary.unique_colegios, baseSummary?.unique_colegios)
   const asesoresDelta = getDelta(summary.unique_asesores, baseSummary?.unique_asesores)
@@ -76,6 +91,19 @@ function SummaryCards({ summary, baseSummary, year, baseYear }) {
           <DeltaBadge delta={revenueDelta} baseYear={baseYear} format={formatCurrency} />
         </div>
       </div>
+
+      {showAccrued && (
+        <div className="summary-card accrued">
+          <div className="card-icon">📈</div>
+          <div className="card-content">
+            <h3>Acumulado {year}</h3>
+            <p className="card-value">{formatCurrency(summary.accrued_revenue)}</p>
+            <span className="card-label">
+              todo lo facturado{accruedMonth ? `, incl. ${accruedMonth} en curso` : ''}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="summary-card">
         <div className="card-icon">🏫</div>

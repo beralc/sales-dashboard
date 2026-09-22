@@ -223,6 +223,14 @@ def clamp_to_period(data_df: pd.DataFrame, cutoff: Optional[str]) -> pd.DataFram
     return data_df[months.notna() & (months <= cutoff)]
 
 
+def accrued_through_month(data_df: pd.DataFrame) -> Optional[str]:
+    """Latest month with revenue in `data_df`, as 'YYYY/MM'."""
+    if data_df.empty or 'Month' not in data_df.columns:
+        return None
+    months = data_df.loc[data_df['Month'].notna() & (data_df['Total neto'] != 0), 'Month']
+    return str(months.max()) if len(months) else None
+
+
 def comparison_cutoff(*years: int) -> Optional[str]:
     """Cutoff to apply when any of `years` is the partial current year.
 
@@ -750,8 +758,10 @@ async def get_summary(
         filtered_df = filtered_df[mask]
 
     # Apply filters
+    unclamped_df = filtered_df
     if year:
         filtered_df = filtered_df[filtered_df['Año Factura'] == year]
+        unclamped_df = filtered_df
         # Clamp when either side of the comparison is the partial current year,
         # so the base year is truncated to match rather than compared in full.
         if not month:
@@ -760,14 +770,22 @@ async def get_summary(
 
     if month:
         filtered_df = filtered_df[filtered_df['Month'] == month]
+        unclamped_df = filtered_df
 
     total_revenue = float(filtered_df['Total neto'].sum())
+    # Everything invoiced so far, including the month in progress. The clamped
+    # figure above answers "are we ahead of last year at the same point"; this
+    # one answers "how much have we actually billed", which the clamp hides -
+    # September 2026 alone was 3.4M that never appeared on the card.
+    accrued_revenue = float(unclamped_df['Total neto'].sum())
     total_records = len(filtered_df)
     unique_colegios = filtered_df['Colegio'].nunique()
     unique_asesores = filtered_df['Asesor'].nunique()
 
     return {
         "total_revenue": total_revenue,
+        "accrued_revenue": accrued_revenue,
+        "accrued_through": accrued_through_month(unclamped_df),
         "total_records": total_records,
         "unique_colegios": unique_colegios,
         "unique_asesores": unique_asesores

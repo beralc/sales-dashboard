@@ -150,3 +150,9 @@
     font-size: 0.75rem;
   }
 }
+
+/* Everything billed so far, including the month in progress. Deliberately not
+   styled as the primary card: it is context, not the comparison figure. */
+.summary-card.accrued {
+  border-left: 3px solid var(--primary-color);
+}
