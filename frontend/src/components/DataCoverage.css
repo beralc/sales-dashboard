@@ -16,13 +16,16 @@
   font-weight: 700;
 }
 
-/* The period actually used by the comparison, once both sides are clamped. */
-.coverage-period {
-  color: var(--text-secondary, #475569);
+/* Raised when the month in progress makes that month's comparison approximate. */
+.data-coverage-warning {
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  box-shadow: none;
 }
 
-.coverage-period strong {
-  color: var(--text-primary, #1e293b);
+.coverage-note {
+  color: #92400e;
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {

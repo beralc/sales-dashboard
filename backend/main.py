@@ -163,64 +163,59 @@ def load_data():
     df = normalise_colegio(merge_archive(_load_active_export()))
     return df
 
-def get_cutoff_month() -> Optional[str]:
-    """The last COMPLETE month of data, as 'MM', or None if the data is whole.
-
-    The current year is always partial, so comparing it against a full prior
-    year measures a quiet half against a busy one. This business is heavily
-    back-loaded - Aug-Dec 2025 was 3.5x Jan-Jul - so that comparison reported
-    Dispositivos at -79.9% when the like-for-like figure was +7.2%.
-
-    The month an export was taken in is itself incomplete, so the last complete
-    month is the one before it. Export dates come from the filename the ERP
-    produces (Crea_tu_propio_informe_YYYYMMDD_HHMMSS.xlsx), falling back to the
-    file's mtime. The result is also capped at the last month that actually has
-    revenue, so a gap at the end of the data cannot invent a complete month.
-    """
-    config = load_config()
-    active_file = config.get("active_file")
-    if not active_file or df.empty or 'Month' not in df.columns:
+def get_export_date() -> Optional[datetime]:
+    """When the active export was taken, from its filename or its mtime."""
+    active_file = load_config().get("active_file")
+    if not active_file:
         return None
 
-    export_date = None
     match = re.search(r'(\d{8})_\d{6}', active_file)
     if match:
         try:
-            export_date = datetime.strptime(match.group(1), "%Y%m%d")
+            return datetime.strptime(match.group(1), "%Y%m%d")
         except ValueError:
-            export_date = None
+            pass
 
-    if export_date is None:
-        path = os.path.join(data_dir, active_file)
-        if os.path.exists(path):
-            export_date = datetime.fromtimestamp(os.path.getmtime(path))
+    path = os.path.join(data_dir, active_file)
+    return datetime.fromtimestamp(os.path.getmtime(path)) if os.path.exists(path) else None
 
-    if export_date is None:
+
+def get_cutoff_month() -> Optional[str]:
+    """The last month of data, as 'MM'.
+
+    Comparisons are clamped to this on both sides, so a part-year is never
+    measured against a full one - that reported Dispositivos at -79.9% when the
+    like-for-like figure was positive, because Aug-Dec 2025 was 3.5x Jan-Jul.
+
+    The month in progress is included even though it is incomplete. Excluding it
+    was more defensible arithmetically, but it hid real money: a 17 September
+    export left 3.4M of invoiced September revenue off the dashboard entirely.
+    Invoice dates carry no day, only year and month, so the base year cannot be
+    trimmed to match - the comparison is therefore approximate for that month,
+    and the UI says so rather than quietly dropping it.
+    """
+    if df.empty or 'Month' not in df.columns:
         return None
 
-    # The export month is partial; the previous month is the last complete one.
-    last_complete = export_date.replace(day=1) - timedelta(days=1)
-    cutoff_year, cutoff_month = last_complete.year, last_complete.month
-
-    # Never claim a month is complete if the data stops earlier.
     with_revenue = df[df['Month'].notna() & (df['Total neto'] != 0)]
     if with_revenue.empty:
         return None
+
+    return str(with_revenue['Month'].max())[5:7]
+
+
+def current_month_is_partial() -> bool:
+    """True when the latest month of data is still in progress."""
+    export_date = get_export_date()
+    if export_date is None or df.empty or 'Month' not in df.columns:
+        return False
+
+    with_revenue = df[df['Month'].notna() & (df['Total neto'] != 0)]
+    if with_revenue.empty:
+        return False
+
     latest = str(with_revenue['Month'].max())
-    latest_year, latest_month = int(latest[:4]), int(latest[5:7])
-
-    if (latest_year, latest_month) < (cutoff_year, cutoff_month):
-        cutoff_year, cutoff_month = latest_year, latest_month
-
-    return f"{cutoff_month:02d}" if cutoff_year >= latest_year else None
-
-
-def clamp_to_period(data_df: pd.DataFrame, cutoff: Optional[str]) -> pd.DataFrame:
-    """Keep only months up to and including `cutoff` ('MM')."""
-    if not cutoff or data_df.empty or 'Month' not in data_df.columns:
-        return data_df
-    months = data_df['Month'].str.slice(5, 7)
-    return data_df[months.notna() & (months <= cutoff)]
+    return (int(latest[:4]), int(latest[5:7])) == (export_date.year, export_date.month)
 
 
 def accrued_through_month(data_df: pd.DataFrame) -> Optional[str]:
@@ -229,6 +224,14 @@ def accrued_through_month(data_df: pd.DataFrame) -> Optional[str]:
         return None
     months = data_df.loc[data_df['Month'].notna() & (data_df['Total neto'] != 0), 'Month']
     return str(months.max()) if len(months) else None
+
+
+def clamp_to_period(data_df: pd.DataFrame, cutoff: Optional[str]) -> pd.DataFrame:
+    """Keep only months up to and including `cutoff` ('MM')."""
+    if not cutoff or data_df.empty or 'Month' not in data_df.columns:
+        return data_df
+    months = data_df['Month'].str.slice(5, 7)
+    return data_df[months.notna() & (months <= cutoff)]
 
 
 def comparison_cutoff(*years: int) -> Optional[str]:
@@ -529,13 +532,17 @@ async def get_data_coverage():
 
     year, month = latest.split('/')
     cutoff = get_cutoff_month()
+    export_date = get_export_date()
     return {
         "latest_month": latest,
         "latest_year": int(year),
         "latest_month_number": int(month),
-        # The last COMPLETE month. Comparisons involving the partial current
-        # year are clamped to this on both sides, so the UI must say so.
+        # Both sides of a comparison are clamped to this month.
         "comparison_cutoff_month": int(cutoff) if cutoff else None,
+        # The latest month is in progress, so that month's comparison against a
+        # complete month of the base year is approximate. The UI must say so.
+        "current_month_partial": current_month_is_partial(),
+        "data_through_day": export_date.day if export_date else None,
     }
 
 @app.get("/api/products")

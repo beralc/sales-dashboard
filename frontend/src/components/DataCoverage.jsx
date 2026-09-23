@@ -6,15 +6,15 @@ const MONTHS = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
 ]
 
-const shortMonth = (n) => (MONTHS[n - 1] ?? `mes ${n}`).slice(0, 3)
-
 /**
- * States how far the data runs and which period the comparison actually uses.
+ * States how far the data runs, and warns when the month in progress makes the
+ * comparison approximate.
  *
- * The current year is always partial, so the API clamps both sides of a
- * comparison to the last complete month. That keeps the figures honest, but it
- * has to be visible - otherwise the totals here will not match a full-year
- * number from anywhere else.
+ * The current month is included in the figures even though it is incomplete,
+ * because excluding it hid real invoiced revenue. Invoice dates carry no day,
+ * only year and month, so the base year cannot be trimmed to the same point -
+ * that month is compared against a complete one, and this says so plainly
+ * rather than letting the difference look like performance.
  */
 function DataCoverage({ apiUrl, currentYear, baseYear }) {
   const { data } = useApiData(`${apiUrl}/api/data-coverage`, {})
@@ -24,24 +24,25 @@ function DataCoverage({ apiUrl, currentYear, baseYear }) {
   const {
     latest_year: latestYear,
     latest_month_number: latestMonth,
-    comparison_cutoff_month: cutoff
+    current_month_partial: partial,
+    data_through_day: day
   } = data
 
   const monthName = MONTHS[latestMonth - 1] ?? `mes ${latestMonth}`
-
-  // Both sides are clamped only when the partial year is part of the comparison.
-  const isClamped =
-    cutoff && (currentYear === latestYear || baseYear === latestYear) && currentYear !== baseYear
+  const involvesCurrentYear = currentYear === latestYear || baseYear === latestYear
+  const showWarning = partial && involvesCurrentYear && currentYear !== baseYear
 
   return (
-    <div className="data-coverage">
+    <div className={`data-coverage${showWarning ? ' data-coverage-warning' : ''}`}>
       <span className="coverage-label">
         Datos hasta <strong>{monthName} {latestYear}</strong>
+        {partial && day ? ` (día ${day})` : ''}
       </span>
-      {isClamped && (
-        <span className="coverage-period">
-          Comparación equivalente: <strong>ene–{shortMonth(cutoff)}</strong> de {baseYear} y {currentYear}
-          {latestMonth > cutoff && ` · ${MONTHS[latestMonth - 1]} está incompleto y queda fuera`}
+      {showWarning && (
+        <span className="coverage-note">
+          Aviso: {monthName} {latestYear} está incompleto y sí se incluye en los
+          totales. Al compararlo con {monthName} de {baseYear}, que es un mes
+          entero, la variación de ese mes no es exacta.
         </span>
       )}
     </div>
