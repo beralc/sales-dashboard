@@ -44,7 +44,9 @@ jobs:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         key: ${{ secrets.VPS_SSH_KEY }}
-        source: "frontend/src/*"
+        # public/ holds the product logos; without it a new logo never
+        # reaches the server and the build emits a broken image reference.
+        source: "frontend/src/*,frontend/public/*"
         target: "/var/www/dashboard/"
         strip_components: 0
 
