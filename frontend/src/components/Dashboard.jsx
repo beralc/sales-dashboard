@@ -9,6 +9,7 @@ import MonthlyComparison from './MonthlyComparison'
 import SummaryCards from './SummaryCards'
 import DataCoverage from './DataCoverage'
 import LostColegios from './LostColegios'
+import OtrosClientes from './OtrosClientes'
 import NewColegios from './NewColegios'
 import RetentionMetrics from './RetentionMetrics'
 import AsesoresPerformance from './AsesoresPerformance'
@@ -210,6 +211,16 @@ function Dashboard({ years, apiUrl, products = [], selectedProducts = [], onProd
             apiUrl={apiUrl}
             year1={selectedYear2}
             year2={selectedYear1}
+            product={selectedProduct}
+            congregacion={congregacion || undefined}
+          />
+        </div>
+
+        <div className="dashboard-section full-width">
+          <OtrosClientes
+            apiUrl={apiUrl}
+            year={selectedYear1}
+            baseYear={selectedYear2}
             product={selectedProduct}
             congregacion={congregacion || undefined}
           />

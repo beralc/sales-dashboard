@@ -1,0 +1,82 @@
+.otros-clientes {
+  margin-bottom: 2rem;
+}
+
+.otros-intro {
+  margin: 0 0 0.9rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #64748b);
+  line-height: 1.45;
+}
+
+.otros-intro strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.unidad-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
+.unidad-chip {
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #64748b);
+  white-space: nowrap;
+}
+
+.unidad-chip strong {
+  color: var(--text-primary);
+  font-weight: 700;
+  margin-left: 0.15rem;
+}
+
+.otros-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.otro-item {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.otro-item:last-child {
+  border-bottom: 0;
+}
+
+.otro-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.otro-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+/* The business unit is how the team recognises these accounts - an export
+   sale reads as "INTERNACIONAL" long before the company name means anything. */
+.otro-unidad {
+  font-size: 0.72rem;
+  color: var(--text-secondary, #64748b);
+  margin-top: 0.12rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.otro-revenue {
+  text-align: right;
+  white-space: nowrap;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--success-color);
+}

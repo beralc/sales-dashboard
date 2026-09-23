@@ -1114,6 +1114,75 @@ async def get_asesores_performance(
         "all_asesores": asesores_stats
     }
 
+@app.get("/api/otros-clientes")
+async def get_otros_clientes(
+    year: int = Query(..., description="Year to report"),
+    compare_year: Optional[int] = Query(None, description="Year to compare against"),
+    product: Optional[str] = Query(None, description="Product slug, or a comma-separated list"),
+    congregacion: Optional[str] = Query(None, description="Exact congregación name, or __SIN__"),
+    limit: int = Query(20, ge=1, le=500)
+):
+    """Revenue from customers that are not schools.
+
+    The ERP leaves Colegio empty for sales to publishers, distributors, export
+    accounts and individuals. That is 4.5% of revenue, and because every
+    school-based panel drops those rows it was invisible: the summary card
+    counted it while the retention breakdown below could not, and nothing
+    explained the gap. Grouped by billing customer and business unit, which is
+    how the team recognises them - "INTERNACIONAL" and the company name.
+    """
+    cutoff = comparison_cutoff(year, compare_year) if compare_year else comparison_cutoff(year)
+
+    def slice_year(y):
+        frame = filter_by_product(df[df['Año Factura'] == y].copy(), product)
+        frame = filter_by_congregation(frame, congregacion)
+        frame = clamp_to_period(frame, cutoff)
+        return frame[frame['Colegio'].isna()] if not frame.empty else frame
+
+    current = slice_year(year)
+    base = slice_year(compare_year) if compare_year else current.iloc[0:0]
+
+    def aggregate(frame):
+        empty = pd.Series(dtype=float)
+        if frame.empty or 'Nom. Cliente Fact.' not in frame.columns:
+            return empty, empty
+        totals = frame.groupby('Nom. Cliente Fact.')['Total neto'].sum()
+        units = frame.groupby('Nom. Cliente Fact.')['Unidad de negocio Línea'].agg(
+            lambda x: x.mode().iloc[0] if not x.mode().empty else None)
+        return totals, units
+
+    cur_totals, cur_units = aggregate(current)
+    base_totals, _ = aggregate(base)
+
+    rows = []
+    for name in set(cur_totals.index) | set(base_totals.index):
+        rows.append({
+            "cliente": name,
+            "unidad": cur_units.get(name) if len(cur_units) else None,
+            "total": float(cur_totals.get(name, 0.0)),
+            "base_total": float(base_totals.get(name, 0.0)),
+        })
+    rows.sort(key=lambda r: r["total"], reverse=True)
+
+    por_unidad = {}
+    if not current.empty:
+        por_unidad = {
+            str(k): float(v) for k, v in
+            current.groupby('Unidad de negocio Línea')['Total neto'].sum()
+            .sort_values(ascending=False).items() if round(v)
+        }
+
+    return {
+        "year": year,
+        "compare_year": compare_year,
+        "total": float(current['Total neto'].sum()) if not current.empty else 0.0,
+        "base_total": float(base['Total neto'].sum()) if not base.empty else 0.0,
+        "total_clientes": len(rows),
+        "por_unidad": por_unidad,
+        "data": rows[:limit],
+    }
+
+
 @app.get("/api/congregaciones")
 async def get_congregaciones(
     year: int = Query(..., description="Year to report"),
