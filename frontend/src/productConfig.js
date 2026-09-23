@@ -46,6 +46,15 @@ export const products = {
       gradient: '#475569'
     }
   },
+  'icecream': {
+    name: 'Ice Cream',
+    logo: '/icecreamlogo.png',
+    colors: {
+      primary: '#4a2329',
+      secondary: '#7a3b44',
+      gradient: 'linear-gradient(135deg, #4a2329 0%, #7a3b44 100%)'
+    }
+  },
   'ondemand': {
     name: 'On Demand',
     logo: null,
