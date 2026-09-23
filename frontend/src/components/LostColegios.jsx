@@ -3,10 +3,10 @@ import { useApiData } from '../hooks/useApiData'
 import PanelError from './PanelError'
 import './LostColegios.css'
 
-function LostColegios({ apiUrl, year1, year2, product }) {
+function LostColegios({ apiUrl, year1, year2, product, congregacion }) {
   const { data: lostData, loading, error, retry } = useApiData(
     `${apiUrl}/api/lost-colegios`,
-    { year1, year2, product }
+    { year1, year2, product, congregacion }
   )
   const [limit, setLimit] = useState(20)
 

@@ -3,11 +3,11 @@ import { useApiData } from '../hooks/useApiData'
 import PanelError from './PanelError'
 import './AsesoresPerformance.css'
 
-function AsesoresPerformance({ apiUrl, year1, year2, product }) {
+function AsesoresPerformance({ apiUrl, year1, year2, product, congregacion }) {
   const [limit, setLimit] = useState(10)
   const { data: performanceData, loading, error, retry } = useApiData(
     `${apiUrl}/api/asesores-performance`,
-    { year1, year2, product, limit }
+    { year1, year2, product, limit, congregacion }
   )
 
   const formatCurrency = (value) => {

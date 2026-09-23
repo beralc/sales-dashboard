@@ -159,9 +159,9 @@ function Dashboard({ years, apiUrl, products = [], selectedProducts = [], onProd
       {/* Shown for every product. Retention used to be hidden for transactional
           lines (dispositivos, ondemand); the team wants the asesor panels
           everywhere, reading "perdido" there as "did not buy again". */}
-      <RetentionMetrics apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
+      <RetentionMetrics apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} congregacion={congregacion || undefined} />
 
-      <AsesoresPerformance apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} />
+      <AsesoresPerformance apiUrl={apiUrl} year1={selectedYear2} year2={selectedYear1} product={selectedProduct} congregacion={congregacion || undefined} />
 
       <div className="dashboard-grid">
         <div className="dashboard-section full-width">
@@ -169,6 +169,7 @@ function Dashboard({ years, apiUrl, products = [], selectedProducts = [], onProd
             apiUrl={apiUrl}
             years={years}
             product={selectedProduct}
+            congregacion={congregacion || undefined}
           />
         </div>
 
@@ -200,6 +201,7 @@ function Dashboard({ years, apiUrl, products = [], selectedProducts = [], onProd
             year1={selectedYear2}
             year2={selectedYear1}
             product={selectedProduct}
+            congregacion={congregacion || undefined}
           />
         </div>
 
@@ -209,6 +211,7 @@ function Dashboard({ years, apiUrl, products = [], selectedProducts = [], onProd
             year1={selectedYear2}
             year2={selectedYear1}
             product={selectedProduct}
+            congregacion={congregacion || undefined}
           />
         </div>
       </div>

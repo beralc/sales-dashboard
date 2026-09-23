@@ -3,7 +3,7 @@ import axios from 'axios'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import './MonthlyComparison.css'
 
-function MonthlyComparison({ apiUrl, years, product }) {
+function MonthlyComparison({ apiUrl, years, product, congregacion }) {
   const [selectedYears, setSelectedYears] = useState([])
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(false)
@@ -21,7 +21,7 @@ function MonthlyComparison({ apiUrl, years, product }) {
     if (selectedYears.length > 0) {
       fetchMonthlyData()
     }
-  }, [selectedYears, product])
+  }, [selectedYears, product, congregacion])
 
   const fetchMonthlyData = async () => {
     if (selectedYears.length === 0) return
@@ -31,7 +31,7 @@ function MonthlyComparison({ apiUrl, years, product }) {
       // Fetch data for all selected years
       const promises = selectedYears.map(year =>
         axios.get(`${apiUrl}/api/monthly-revenue`, {
-          params: { year, product }
+          params: { year, product, congregacion }
         })
       )
 

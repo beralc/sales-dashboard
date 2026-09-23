@@ -367,6 +367,20 @@ def available_products() -> List[str]:
     return sorted(out)
 
 
+def filter_by_congregation(data_df: pd.DataFrame, congregacion: Optional[str]) -> pd.DataFrame:
+    """Keep rows belonging to one congregación.
+
+    "__SIN__" selects the schools with none, which is 47% of the rows and a
+    real category rather than missing data.
+    """
+    if data_df.empty or not congregacion:
+        return data_df
+
+    congr = congregation_series(data_df)
+    mask = congr.isna() if congregacion == "__SIN__" else (congr == congregacion)
+    return data_df[mask]
+
+
 def filter_by_products(data_df: pd.DataFrame, products: Optional[List[str]]) -> pd.DataFrame:
     """Keep rows belonging to any of `products`.
 
@@ -715,7 +729,8 @@ async def get_monthly_comparison(
 @app.get("/api/monthly-revenue")
 async def get_monthly_revenue(
     year: int = Query(..., description="Year to get monthly revenue"),
-    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)")
+    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
+    congregacion: Optional[str] = Query(None, description="Exact congregación name, or __SIN__ for schools with none")
 ):
     """Get monthly revenue for a single year"""
 
@@ -724,6 +739,7 @@ async def get_monthly_revenue(
 
     # Apply product filter
     df_year = filter_by_product(df_year, product)
+    df_year = filter_by_congregation(df_year, congregacion)
 
     # Extract month number from Month column
     df_year['MonthNum'] = df_year['Month'].str.extract(r'/(\d{2})')[0]
@@ -802,14 +818,20 @@ async def get_summary(
 async def get_lost_colegios(
     year1: int = Query(..., description="Previous year (had sales)"),
     year2: int = Query(..., description="Current year (lost sales)"),
-    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)")
+    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
+    congregacion: Optional[str] = Query(None, description="Exact congregación name, or __SIN__ for schools with none")
 ):
     """Get colegios that had sales in year1 but not in year2"""
 
     # Get unique colegios for each year
     cutoff = comparison_cutoff(year1, year2)
-    df_year1 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year1].copy(), product), cutoff)
-    df_year2 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year2].copy(), product), cutoff)
+
+    def slice_year(y):
+        frame = filter_by_product(df[df['Año Factura'] == y].copy(), product)
+        return clamp_to_period(filter_by_congregation(frame, congregacion), cutoff)
+
+    df_year1 = slice_year(year1)
+    df_year2 = slice_year(year2)
 
     colegios_year1 = set(df_year1['Colegio'].dropna().unique())
     colegios_year2 = set(df_year2['Colegio'].dropna().unique())
@@ -850,14 +872,20 @@ async def get_lost_colegios(
 async def get_new_colegios(
     year1: int = Query(..., description="Previous year (baseline)"),
     year2: int = Query(..., description="Current year (new sales)"),
-    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)")
+    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
+    congregacion: Optional[str] = Query(None, description="Exact congregación name, or __SIN__ for schools with none")
 ):
     """Get colegios that have sales in year2 but not in year1 (new customers)"""
 
     # Get unique colegios for each year
     cutoff = comparison_cutoff(year1, year2)
-    df_year1 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year1].copy(), product), cutoff)
-    df_year2 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year2].copy(), product), cutoff)
+
+    def slice_year(y):
+        frame = filter_by_product(df[df['Año Factura'] == y].copy(), product)
+        return clamp_to_period(filter_by_congregation(frame, congregacion), cutoff)
+
+    df_year1 = slice_year(year1)
+    df_year2 = slice_year(year2)
 
     colegios_year1 = set(df_year1['Colegio'].dropna().unique())
     colegios_year2 = set(df_year2['Colegio'].dropna().unique())
@@ -898,14 +926,20 @@ async def get_new_colegios(
 async def get_retention_metrics(
     year1: int = Query(..., description="Previous year"),
     year2: int = Query(..., description="Current year"),
-    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)")
+    product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
+    congregacion: Optional[str] = Query(None, description="Exact congregación name, or __SIN__ for schools with none")
 ):
     """Get retention metrics comparing two years"""
 
     # Get unique colegios for each year
     cutoff = comparison_cutoff(year1, year2)
-    df_year1 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year1].copy(), product), cutoff)
-    df_year2 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year2].copy(), product), cutoff)
+
+    def slice_year(y):
+        frame = filter_by_product(df[df['Año Factura'] == y].copy(), product)
+        return clamp_to_period(filter_by_congregation(frame, congregacion), cutoff)
+
+    df_year1 = slice_year(year1)
+    df_year2 = slice_year(year2)
 
     colegios_year1 = set(df_year1['Colegio'].dropna().unique())
     colegios_year2 = set(df_year2['Colegio'].dropna().unique())
@@ -1014,14 +1048,20 @@ async def get_asesores_performance(
     year1: int = Query(..., description="Previous year"),
     year2: int = Query(..., description="Current year"),
     product: Optional[str] = Query(None, description="Filter by product (ta-tum, gosteam, goproject)"),
-    limit: int = Query(10, ge=1, le=500, description="Max asesores per ranking")
+    limit: int = Query(10, ge=1, le=500, description="Max asesores per ranking"),
+    congregacion: Optional[str] = Query(None, description="Exact congregación name, or __SIN__ for schools with none")
 ):
     """Get asesor performance metrics: retention, new, and lost colegios"""
 
     # Get unique colegios for each year
     cutoff = comparison_cutoff(year1, year2)
-    df_year1 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year1].copy(), product), cutoff)
-    df_year2 = clamp_to_period(filter_by_product(df[df['Año Factura'] == year2].copy(), product), cutoff)
+
+    def slice_year(y):
+        frame = filter_by_product(df[df['Año Factura'] == y].copy(), product)
+        return clamp_to_period(filter_by_congregation(frame, congregacion), cutoff)
+
+    df_year1 = slice_year(year1)
+    df_year2 = slice_year(year2)
 
     # Get all asesores
     all_asesores = set(df_year1['Asesor'].dropna().unique()) | set(df_year2['Asesor'].dropna().unique())

@@ -2,10 +2,10 @@ import { useApiData } from '../hooks/useApiData'
 import PanelError from './PanelError'
 import './RetentionMetrics.css'
 
-function RetentionMetrics({ apiUrl, year1, year2, product }) {
+function RetentionMetrics({ apiUrl, year1, year2, product, congregacion }) {
   const { data: metrics, loading, error, retry } = useApiData(
     `${apiUrl}/api/retention-metrics`,
-    { year1, year2, product }
+    { year1, year2, product, congregacion }
   )
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-ES', {

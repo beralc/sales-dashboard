@@ -3,10 +3,10 @@ import { useApiData } from '../hooks/useApiData'
 import PanelError from './PanelError'
 import './NewColegios.css'
 
-function NewColegios({ apiUrl, year1, year2, product }) {
+function NewColegios({ apiUrl, year1, year2, product, congregacion }) {
   const { data: newData, loading, error, retry } = useApiData(
     `${apiUrl}/api/new-colegios`,
-    { year1, year2, product }
+    { year1, year2, product, congregacion }
   )
   const [limit, setLimit] = useState(20)
 
