@@ -46,6 +46,15 @@ export const products = {
       gradient: '#475569'
     }
   },
+  'texto': {
+    name: 'Texto',
+    logo: null,
+    colors: {
+      primary: '#1d4ed8',
+      secondary: '#3b82f6',
+      gradient: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)'
+    }
+  },
   'icecream': {
     name: 'Ice Cream',
     logo: '/icecreamlogo.png',

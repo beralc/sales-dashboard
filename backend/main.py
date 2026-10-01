@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import pandas as pd
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
+import calendar
 import re
 import os
 import json
@@ -201,7 +202,19 @@ def get_cutoff_month() -> Optional[str]:
     if with_revenue.empty:
         return None
 
-    return str(with_revenue['Month'].max())[5:7]
+    latest = str(with_revenue['Month'].max())
+
+    # Drop the month in progress when it has barely started; see
+    # current_month_is_usable for why.
+    export_date = get_export_date()
+    if (export_date is not None
+            and (int(latest[:4]), int(latest[5:7])) == (export_date.year, export_date.month)
+            and not current_month_is_usable()):
+        months = with_revenue.loc[with_revenue['Month'] < latest, 'Month']
+        if len(months):
+            return str(months.max())[5:7]
+
+    return latest[5:7]
 
 
 def current_month_is_partial() -> bool:
@@ -216,6 +229,26 @@ def current_month_is_partial() -> bool:
 
     latest = str(with_revenue['Month'].max())
     return (int(latest[:4]), int(latest[5:7])) == (export_date.year, export_date.month)
+
+
+def current_month_is_usable() -> bool:
+    """Whether the month in progress is far enough along to compare.
+
+    The month in progress is normally included: excluding it once hid 3.4M of
+    invoiced revenue. But an export taken on the 1st carries a single day, and
+    comparing that against a whole month of the base year is not approximate,
+    it is wrong - for Texto it turned -1.1% into -8.8%.
+
+    So it is included once at least half the month has elapsed. A 23 September
+    export counts September; a 1 October export does not count October, and the
+    comparison falls back to the last complete month.
+    """
+    export_date = get_export_date()
+    if export_date is None:
+        return False
+
+    days_in_month = calendar.monthrange(export_date.year, export_date.month)[1]
+    return export_date.day >= days_in_month / 2
 
 
 def accrued_through_month(data_df: pd.DataFrame) -> Optional[str]:
@@ -553,9 +586,10 @@ async def get_data_coverage():
         "latest_month_number": int(month),
         # Both sides of a comparison are clamped to this month.
         "comparison_cutoff_month": int(cutoff) if cutoff else None,
-        # The latest month is in progress, so that month's comparison against a
-        # complete month of the base year is approximate. The UI must say so.
+        # The latest month is in progress. Whether it is counted depends on how
+        # far along it is, and the UI says something different for each case.
         "current_month_partial": current_month_is_partial(),
+        "current_month_included": current_month_is_partial() and current_month_is_usable(),
         "data_through_day": export_date.day if export_date else None,
     }
 

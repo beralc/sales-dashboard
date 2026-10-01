@@ -25,6 +25,8 @@ function DataCoverage({ apiUrl, currentYear, baseYear }) {
     latest_year: latestYear,
     latest_month_number: latestMonth,
     current_month_partial: partial,
+    current_month_included: included,
+    comparison_cutoff_month: cutoff,
     data_through_day: day
   } = data
 
@@ -38,11 +40,18 @@ function DataCoverage({ apiUrl, currentYear, baseYear }) {
         Datos hasta <strong>{monthName} {latestYear}</strong>
         {partial && day ? ` (día ${day})` : ''}
       </span>
-      {showWarning && (
+      {showWarning && included && (
         <span className="coverage-note">
           Aviso: {monthName} {latestYear} está incompleto y sí se incluye en los
           totales. Al compararlo con {monthName} de {baseYear}, que es un mes
           entero, la variación de ese mes no es exacta.
+        </span>
+      )}
+      {showWarning && !included && (
+        <span className="coverage-note">
+          {monthName} {latestYear} apenas ha empezado, así que queda fuera de la
+          comparación: las cifras llegan hasta {MONTHS[cutoff - 1] ?? `mes ${cutoff}`} en
+          ambos años.
         </span>
       )}
     </div>
