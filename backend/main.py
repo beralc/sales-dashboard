@@ -6,6 +6,7 @@ from auth import AuthError, verify_bearer_token
 from contextlib import asynccontextmanager
 import pandas as pd
 from typing import List, Optional, Dict
+from functools import lru_cache
 from datetime import datetime, timedelta
 import calendar
 import re
@@ -162,7 +163,27 @@ def load_data():
     """Load the active export and merge in archived closed years."""
     global df
     df = normalise_colegio(merge_archive(_load_active_export()))
+    # Anything derived from the previous frame is now stale.
+    _latest_month_cached.cache_clear()
     return df
+
+@lru_cache(maxsize=1)
+def _latest_month_cached(token) -> Optional[str]:
+    """Latest month with revenue. Keyed on a token that changes when data does.
+
+    Scanning 1.2M rows for this ran three times per data-coverage call and
+    several more across the comparison helpers, which is most of why that
+    endpoint took three seconds.
+    """
+    if df.empty or 'Month' not in df.columns:
+        return None
+    months = df.loc[df['Month'].notna() & (df['Total neto'] != 0), 'Month']
+    return str(months.max()) if len(months) else None
+
+
+def latest_month() -> Optional[str]:
+    return _latest_month_cached((id(df), len(df)))
+
 
 def get_export_date() -> Optional[datetime]:
     """When the active export was taken, from its filename or its mtime."""
@@ -198,11 +219,9 @@ def get_cutoff_month() -> Optional[str]:
     if df.empty or 'Month' not in df.columns:
         return None
 
-    with_revenue = df[df['Month'].notna() & (df['Total neto'] != 0)]
-    if with_revenue.empty:
+    latest = latest_month()
+    if latest is None:
         return None
-
-    latest = str(with_revenue['Month'].max())
 
     # Drop the month in progress when it has barely started; see
     # current_month_is_usable for why.
@@ -210,9 +229,10 @@ def get_cutoff_month() -> Optional[str]:
     if (export_date is not None
             and (int(latest[:4]), int(latest[5:7])) == (export_date.year, export_date.month)
             and not current_month_is_usable()):
-        months = with_revenue.loc[with_revenue['Month'] < latest, 'Month']
-        if len(months):
-            return str(months.max())[5:7]
+        earlier = df.loc[df['Month'].notna() & (df['Total neto'] != 0)
+                         & (df['Month'] < latest), 'Month']
+        if len(earlier):
+            return str(earlier.max())[5:7]
 
     return latest[5:7]
 
@@ -223,11 +243,10 @@ def current_month_is_partial() -> bool:
     if export_date is None or df.empty or 'Month' not in df.columns:
         return False
 
-    with_revenue = df[df['Month'].notna() & (df['Total neto'] != 0)]
-    if with_revenue.empty:
+    latest = latest_month()
+    if latest is None:
         return False
 
-    latest = str(with_revenue['Month'].max())
     return (int(latest[:4]), int(latest[5:7])) == (export_date.year, export_date.month)
 
 
@@ -277,10 +296,10 @@ def comparison_cutoff(*years: int) -> Optional[str]:
     if not cutoff or df.empty:
         return None
 
-    with_revenue = df[df['Month'].notna() & (df['Total neto'] != 0)]
-    if with_revenue.empty:
+    latest = latest_month()
+    if latest is None:
         return None
-    partial_year = int(str(with_revenue['Month'].max())[:4])
+    partial_year = int(latest[:4])
 
     return cutoff if any(y == partial_year for y in years) else None
 
@@ -848,6 +867,46 @@ async def get_summary(
         "unique_asesores": unique_asesores
     }
 
+def summarise_colegios(frame: pd.DataFrame, names) -> List[Dict]:
+    """Revenue, congregación, asesor and coordinador for each named school.
+
+    One grouped pass instead of a full scan per school. The loop this replaces
+    cost 45 seconds on new-colegios once Texto took the dataset past a million
+    rows, because it scanned the whole frame once per school and then three
+    more times for mode().
+    """
+    if frame.empty or not names:
+        return []
+
+    subset = frame[frame['Colegio'].isin(names)]
+    if subset.empty:
+        return []
+
+    def first_mode(series):
+        modes = series.mode()
+        return modes.iloc[0] if len(modes) else None
+
+    grouped = subset.groupby('Colegio').agg(
+        revenue=('Total neto', 'sum'),
+        congregacion=('Congregación Envío', 'first'),
+        asesor=('Asesor', first_mode),
+        coordinador=('Coordinador', first_mode),
+    )
+
+    rows = [
+        {
+            "colegio": name,
+            "congregacion": row.congregacion,
+            "revenue": float(row.revenue),
+            "asesor": row.asesor,
+            "coordinador": row.coordinador,
+        }
+        for name, row in grouped.iterrows()
+    ]
+    rows.sort(key=lambda r: r["revenue"], reverse=True)
+    return rows
+
+
 @app.get("/api/lost-colegios")
 async def get_lost_colegios(
     year1: int = Query(..., description="Previous year (had sales)"),
@@ -874,25 +933,16 @@ async def get_lost_colegios(
     lost_colegios_names = colegios_year1 - colegios_year2
 
     # Get details for lost colegios including their revenue in year1
-    lost_colegios_data = []
-    for colegio_name in lost_colegios_names:
-        colegio_df = df_year1[df_year1['Colegio'] == colegio_name]
-        total_revenue = float(colegio_df['Total neto'].sum())
-        congregacion = colegio_df['Congregación Envío'].iloc[0] if len(colegio_df) > 0 else None
-        # Get asesor and coordinador - use the most frequent one if there are multiple
-        asesor = colegio_df['Asesor'].mode()[0] if len(colegio_df) > 0 and not colegio_df['Asesor'].isna().all() else None
-        coordinador = colegio_df['Coordinador'].mode()[0] if len(colegio_df) > 0 and not colegio_df['Coordinador'].isna().all() else None
-
-        lost_colegios_data.append({
-            "colegio": colegio_name,
-            "congregacion": congregacion,
-            "revenue_in_previous_year": total_revenue,
-            "asesor": asesor,
-            "coordinador": coordinador
-        })
-
-    # Sort by revenue (descending)
-    lost_colegios_data.sort(key=lambda x: x['revenue_in_previous_year'], reverse=True)
+    lost_colegios_data = [
+        {
+            "colegio": r["colegio"],
+            "congregacion": r["congregacion"],
+            "revenue_in_previous_year": r["revenue"],
+            "asesor": r["asesor"],
+            "coordinador": r["coordinador"],
+        }
+        for r in summarise_colegios(df_year1, lost_colegios_names)
+    ]
 
     return {
         "year1": year1,
@@ -928,25 +978,16 @@ async def get_new_colegios(
     new_colegios_names = colegios_year2 - colegios_year1
 
     # Get details for new colegios including their revenue in year2
-    new_colegios_data = []
-    for colegio_name in new_colegios_names:
-        colegio_df = df_year2[df_year2['Colegio'] == colegio_name]
-        total_revenue = float(colegio_df['Total neto'].sum())
-        congregacion = colegio_df['Congregación Envío'].iloc[0] if len(colegio_df) > 0 else None
-        # Get asesor and coordinador - use the most frequent one if there are multiple
-        asesor = colegio_df['Asesor'].mode()[0] if len(colegio_df) > 0 and not colegio_df['Asesor'].isna().all() else None
-        coordinador = colegio_df['Coordinador'].mode()[0] if len(colegio_df) > 0 and not colegio_df['Coordinador'].isna().all() else None
-
-        new_colegios_data.append({
-            "colegio": colegio_name,
-            "congregacion": congregacion,
-            "revenue_in_current_year": total_revenue,
-            "asesor": asesor,
-            "coordinador": coordinador
-        })
-
-    # Sort by revenue (descending)
-    new_colegios_data.sort(key=lambda x: x['revenue_in_current_year'], reverse=True)
+    new_colegios_data = [
+        {
+            "colegio": r["colegio"],
+            "congregacion": r["congregacion"],
+            "revenue_in_current_year": r["revenue"],
+            "asesor": r["asesor"],
+            "coordinador": r["coordinador"],
+        }
+        for r in summarise_colegios(df_year2, new_colegios_names)
+    ]
 
     return {
         "year1": year1,
@@ -1097,24 +1138,38 @@ async def get_asesores_performance(
     df_year1 = slice_year(year1)
     df_year2 = slice_year(year2)
 
-    # Get all asesores
-    all_asesores = set(df_year1['Asesor'].dropna().unique()) | set(df_year2['Asesor'].dropna().unique())
+    # One grouped pass per year instead of six masked scans per asesor. With
+    # 1.2M rows the loop this replaces took 19 seconds.
+    def pairs(frame):
+        """{asesor: {colegio: revenue}} for one year."""
+        if frame.empty:
+            return {}
+        valid = frame[frame['Asesor'].notna() & frame['Colegio'].notna()]
+        if valid.empty:
+            return {}
+        grouped = valid.groupby(['Asesor', 'Colegio'])['Total neto'].sum()
+        out = {}
+        for (asesor, colegio), revenue in grouped.items():
+            out.setdefault(asesor, {})[colegio] = float(revenue)
+        return out
+
+    by_asesor_y1 = pairs(df_year1)
+    by_asesor_y2 = pairs(df_year2)
+    all_asesores = set(by_asesor_y1) | set(by_asesor_y2)
 
     asesores_stats = []
-
     for asesor in all_asesores:
-        # Get colegios managed by this asesor in each year
-        colegios_y1 = set(df_year1[df_year1['Asesor'] == asesor]['Colegio'].dropna().unique())
-        colegios_y2 = set(df_year2[df_year2['Asesor'] == asesor]['Colegio'].dropna().unique())
+        y1 = by_asesor_y1.get(asesor, {})
+        y2 = by_asesor_y2.get(asesor, {})
+        colegios_y1, colegios_y2 = set(y1), set(y2)
 
         retained = colegios_y1 & colegios_y2
         lost = colegios_y1 - colegios_y2
         new = colegios_y2 - colegios_y1
 
-        # Calculate revenue for each category
-        revenue_retained = float(df_year2[(df_year2['Asesor'] == asesor) & (df_year2['Colegio'].isin(retained))]['Total neto'].sum())
-        revenue_new = float(df_year2[(df_year2['Asesor'] == asesor) & (df_year2['Colegio'].isin(new))]['Total neto'].sum())
-        revenue_lost = float(df_year1[(df_year1['Asesor'] == asesor) & (df_year1['Colegio'].isin(lost))]['Total neto'].sum())
+        revenue_retained = float(sum(y2[c] for c in retained))
+        revenue_new = float(sum(y2[c] for c in new))
+        revenue_lost = float(sum(y1[c] for c in lost))
 
         retention_rate = (len(retained) / len(colegios_y1) * 100) if len(colegios_y1) > 0 else 0
 
@@ -1124,6 +1179,7 @@ async def get_asesores_performance(
             "new_count": len(new),
             "lost_count": len(lost),
             "retention_rate": round(retention_rate, 2),
+
             "revenue_retained": revenue_retained,
             "revenue_new": revenue_new,
             "revenue_lost": revenue_lost,
