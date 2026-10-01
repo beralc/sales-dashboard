@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import axios from 'axios'
 import { useApiData } from '../hooks/useApiData'
 import { getProductConfig } from '../productConfig'
@@ -18,6 +18,23 @@ function Congregaciones({ apiUrl, currentYear, baseYear }) {
   const [scope, setScope] = useState('todos')
   const [selected, setSelected] = useState([])
   const [exporting, setExporting] = useState(false)
+
+  // The controls bar is sticky and wraps to more rows as the window narrows,
+  // so its height is published to CSS for the table header to rest under.
+  const controlsRef = useRef(null)
+  useEffect(() => {
+    const el = controlsRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    // Set on the shared ancestor: the table header is a sibling of the bar,
+    // so a variable set on the bar itself would never reach it.
+    const scope = el.parentElement ?? el
+    const publish = () =>
+      scope.style.setProperty('--congr-bar-h', `${Math.round(el.offsetHeight)}px`)
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const [exportError, setExportError] = useState(false)
 
   const productsParam = selected.join(',')
@@ -80,7 +97,7 @@ function Congregaciones({ apiUrl, currentYear, baseYear }) {
 
   return (
     <div className="congregaciones">
-      <div className="congr-controls">
+      <div className="congr-controls" ref={controlsRef}>
         <button className="chip congr-export" onClick={exportCsv} disabled={exporting}>
           {exporting ? 'Exportando...' : 'Exportar a Excel'}
         </button>

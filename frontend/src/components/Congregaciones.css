@@ -2,12 +2,28 @@
   margin-bottom: 2rem;
 }
 
+/* Sticks to the top while scrolling the congregation table, which is long:
+   the product and scope filters stay reachable without scrolling back up, and
+   you can always see which filter the rows below are under. */
 .congr-controls {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   background: var(--card-bg);
   border-radius: 8px;
   padding: 1rem 1.25rem;
   box-shadow: var(--shadow);
   margin-bottom: 1.5rem;
+}
+
+/* The page background shows through the rounded corners once stuck, so the
+   bar gets a matching backdrop that extends past them. */
+.congr-controls::before {
+  content: '';
+  position: absolute;
+  inset: -0.75rem -1rem 0;
+  background: var(--bg-color, #f8fafc);
+  z-index: -1;
 }
 
 .scope-switch {
@@ -101,12 +117,20 @@
   line-height: 1.1;
 }
 
-/* Wide matrices scroll inside the card rather than the page. */
+/* No horizontal scroll by default: an overflow container becomes the sticky
+   context, which stops the table header sticking to the page at all. Narrow
+   screens get the scroll back and lose the sticky header, which is the better
+   trade there. */
 .congr-table-wrap {
-  overflow-x: auto;
   background: var(--card-bg);
   border-radius: 8px;
   box-shadow: var(--shadow);
+}
+
+@media (max-width: 1100px) {
+  .congr-table-wrap {
+    overflow-x: auto;
+  }
 }
 
 .congr-table {
@@ -117,7 +141,10 @@
 
 .congr-table th {
   position: sticky;
-  top: 0;
+  /* Rests directly under the controls bar, whose height is published as
+     --congr-bar-h because it wraps to two or three rows as the window narrows. */
+  top: var(--congr-bar-h, 105px);
+  z-index: 5;
   background: #f1f5f9;
   text-align: left;
   font-size: 0.7rem;
